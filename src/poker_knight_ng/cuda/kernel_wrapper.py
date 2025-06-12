@@ -10,6 +10,11 @@ import numpy as np
 from typing import Dict, Any, Optional
 import os
 from pathlib import Path
+import time
+import logging
+
+# Configure logging
+logger = logging.getLogger(__name__)
 
 
 class PokerKernel:
@@ -106,15 +111,29 @@ class PokerKernel:
     def execute(
         self,
         gpu_inputs: 'GPUInputBuffers',
-        gpu_outputs: 'GPUOutputBuffers'
+        gpu_outputs: 'GPUOutputBuffers',
+        max_retries: int = 3,
+        retry_delay: float = 0.1
     ) -> None:
         """
-        Execute the monolithic kernel.
+        Execute the monolithic kernel with error handling and retry logic.
         
         Args:
             gpu_inputs: Input buffers on GPU
             gpu_outputs: Pre-allocated output buffers on GPU
+            max_retries: Maximum number of retry attempts
+            retry_delay: Initial delay between retries (exponential backoff)
+        
+        Raises:
+            RuntimeError: If kernel execution fails after all retries
         """
+        # Check device memory before execution
+        try:
+            self._check_device_memory(gpu_inputs.num_simulations)
+        except cp.cuda.memory.OutOfMemoryError as e:
+            logger.error(f"Insufficient GPU memory: {e}")
+            raise RuntimeError(f"GPU out of memory. Try reducing simulation count or using a smaller mode.")
+        
         # Calculate grid configuration
         grid, block = self.calculate_grid_config(gpu_inputs.num_simulations)
         
@@ -170,20 +189,50 @@ class PokerKernel:
             gpu_outputs.actual_simulations
         )
         
-        # Launch kernel
-        self.kernel(
-            grid=grid,
-            block=block,
-            args=args,
-            shared_mem=self.shared_mem_size
-        )
+        # Launch kernel with retry logic
+        last_error = None
+        for attempt in range(max_retries):
+            try:
+                # Launch kernel
+                self.kernel(
+                    grid=grid,
+                    block=block,
+                    args=args,
+                    shared_mem=self.shared_mem_size
+                )
+                
+                # Synchronize to ensure completion
+                cp.cuda.Device().synchronize()
+                
+                # Post-process results on GPU to ensure proper normalization
+                # This is a workaround for the synchronization issue in the kernel
+                self._normalize_results(gpu_outputs)
+                
+                # Success - exit retry loop
+                return
+                
+            except (cp.cuda.runtime.CUDARuntimeError, RuntimeError) as e:
+                last_error = e
+                logger.warning(f"Kernel execution attempt {attempt + 1} failed: {e}")
+                
+                if attempt < max_retries - 1:
+                    # Exponential backoff
+                    delay = retry_delay * (2 ** attempt)
+                    logger.info(f"Retrying in {delay:.2f} seconds...")
+                    time.sleep(delay)
+                    
+                    # Try to recover GPU state
+                    try:
+                        cp.cuda.Device().synchronize()
+                        cp.get_default_memory_pool().free_all_blocks()
+                    except Exception:
+                        pass
+                else:
+                    # Final attempt failed
+                    logger.error(f"Kernel execution failed after {max_retries} attempts")
         
-        # Synchronize to ensure completion
-        cp.cuda.Device().synchronize()
-        
-        # Post-process results on GPU to ensure proper normalization
-        # This is a workaround for the synchronization issue in the kernel
-        self._normalize_results(gpu_outputs)
+        # All retries exhausted
+        raise RuntimeError(f"GPU kernel execution failed after {max_retries} attempts: {last_error}")
     
     def _normalize_results(self, gpu_outputs):
         """Normalize probability results that are currently raw counts."""
@@ -230,6 +279,58 @@ class PokerKernel:
             'temp_memory': temp_memory,
             'total': rng_memory + total_shared + temp_memory
         }
+    
+    def _check_device_memory(self, num_simulations: int) -> None:
+        """
+        Check if device has enough memory for the requested simulations.
+        
+        Args:
+            num_simulations: Number of simulations to run
+            
+        Raises:
+            cp.cuda.memory.OutOfMemoryError: If insufficient memory
+        """
+        # Get current device
+        device = cp.cuda.Device()
+        
+        # Get memory info
+        free_mem, total_mem = cp.cuda.runtime.memGetInfo()
+        
+        # Estimate memory requirements
+        mem_reqs = self.get_memory_requirements(num_simulations)
+        required_mem = mem_reqs['total']
+        
+        # Add buffer for other allocations (input/output buffers)
+        buffer_size = 100 * 1024 * 1024  # 100 MB buffer
+        total_required = required_mem + buffer_size
+        
+        logger.debug(f"GPU memory check: {free_mem / 1024**2:.1f} MB free, "
+                    f"{total_required / 1024**2:.1f} MB required")
+        
+        if free_mem < total_required:
+            raise cp.cuda.memory.OutOfMemoryError(
+                f"Insufficient GPU memory. Available: {free_mem / 1024**2:.1f} MB, "
+                f"Required: {total_required / 1024**2:.1f} MB"
+            )
+    
+    def reset_device(self) -> None:
+        """
+        Reset GPU device state in case of errors.
+        """
+        try:
+            # Synchronize device
+            cp.cuda.Device().synchronize()
+            
+            # Clear memory pools
+            cp.get_default_memory_pool().free_all_blocks()
+            cp.get_default_pinned_memory_pool().free_all_blocks()
+            
+            # Clear any pending errors
+            cp.cuda.runtime.getLastError()
+            
+            logger.info("GPU device state reset successfully")
+        except Exception as e:
+            logger.error(f"Failed to reset device state: {e}")
 
 
 # Global kernel instance

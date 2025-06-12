@@ -20,6 +20,7 @@ class SimulationResult:
     execution_time_ms: float
     execution_time_start: float
     execution_time_end: float
+    actual_simulations: int
     
     # Statistical
     confidence_interval: Tuple[float, float]
@@ -110,6 +111,7 @@ def build_simulation_result(
         execution_time_ms=execution_time_ms,
         execution_time_start=execution_time_start,
         execution_time_end=execution_time_end,
+        actual_simulations=cpu_results['actual_simulations'],
         confidence_interval=cpu_results['confidence_interval'],
         hand_category_frequencies=hand_freq_dict
     )
