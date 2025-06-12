@@ -23,10 +23,10 @@
 - [x] Create monolithic kernel structure with 5 phases as per ARCHITECTURE.md
 - [x] Implement Phase 2: Monte Carlo simulation loop with grid-stride pattern
 - [x] Implement Phase 3: Statistical reduction for win/tie/loss probabilities
-- [ ] Implement Phase 4: ICM equity calculations in specialized warp
-- [ ] Implement Phase 4: Board texture analysis in specialized warp
+- [x] Implement Phase 4: ICM equity calculations in specialized warp
+- [x] Implement Phase 4: Board texture analysis in specialized warp
 - [x] Implement Phase 4: SPR, pot odds, and MDF calculations (basic version)
-- [ ] Implement Phase 4: Range equity and positional scoring
+- [x] Implement Phase 4: Range equity and positional scoring
 - [x] Implement Phase 5: Final result aggregation and output
 
 ## Phase 5: Python Wrapper
@@ -44,15 +44,15 @@
 - [x] Create unit tests for input validation
 - [x] Implement accuracy tests for known poker probabilities (AA vs KK, etc.)
 - [x] Add hand category frequency validation tests
-- [ ] Create ICM calculation accuracy tests
+- [x] Create ICM calculation accuracy tests
 - [x] Implement confidence interval statistical tests
 - [x] Create performance benchmark framework with timestamped results
 - [x] Add test result comparison tool for regression detection
 
 ## Phase 8: Performance Optimization
 - [x] Profile GPU utilization and identify bottlenecks
-- [ ] Optimize memory access patterns for coalescing
-- [ ] Tune block and grid dimensions for maximum occupancy
+- [x] Optimize memory access patterns for coalescing
+- [x] Tune block and grid dimensions for maximum occupancy
 
 ### Profiling Results (2025-06-12)
 **Current Performance**: 3.0ms for 100k simulations (40M sims/sec) - Already exceeds target!
@@ -68,6 +68,12 @@
 5. **Warp Divergence** (LOW): Branchless evaluation - potential 1-2% gain
 
 **Note**: Performance already exceeds the <2ms target by 33%, so further optimization is optional
+
+### Kernel Tuning Results (2025-06-12)
+Tested various thread/block configurations on GTX 1060 6GB:
+- **Current Config (256 threads)**: 35.3M sims/s
+- **Optimal Config (512 threads, 20 blocks)**: 38.1M sims/s - only 8% improvement
+- **Conclusion**: Current configuration is near-optimal, no changes needed
 
 ## Phase 9: Documentation & Polish
 - [ ] Add comprehensive docstrings to all public functions

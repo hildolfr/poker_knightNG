@@ -134,13 +134,18 @@ def validate_inputs(
     if tournament_context is not None:
         if not isinstance(tournament_context, dict):
             raise ValidationError("tournament_context must be a dictionary")
-        # Basic structure validation
-        required_keys = {'payouts', 'players_remaining', 'average_stack'}
-        if not all(key in tournament_context for key in required_keys):
-            raise ValidationError(
-                f"tournament_context must contain keys: {required_keys}"
-            )
-        validated['tournament_context'] = tournament_context
+        # Basic structure validation - payouts is the minimum requirement
+        if 'payouts' not in tournament_context:
+            raise ValidationError("tournament_context must contain 'payouts' key")
+        
+        # Fill in defaults for missing keys
+        context = tournament_context.copy()
+        if 'players_remaining' not in context:
+            context['players_remaining'] = len(context['payouts'])
+        if 'average_stack' not in context:
+            context['average_stack'] = 10000  # Default average stack
+        
+        validated['tournament_context'] = context
     
     # Validate action_to_hero
     if action_to_hero is not None:

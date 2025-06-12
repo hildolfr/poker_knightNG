@@ -68,6 +68,45 @@ class TestResultComparator:
                 'opponents': 5,
                 'board': None,
                 'mode': 'default'
+            },
+            {
+                'name': 'icm_bubble',
+                'hand': ['A♠', 'K♠'],
+                'opponents': 3,
+                'board': None,
+                'mode': 'default',
+                'tournament_context': {
+                    'payouts': [0.5, 0.3, 0.2],
+                    'players_remaining': 4,
+                    'average_stack': 5000
+                },
+                'stack_sizes': [5000, 5000, 5000, 5000]
+            },
+            {
+                'name': 'board_texture_wet',
+                'hand': ['Q♥', 'Q♦'],
+                'opponents': 2,
+                'board': ['J♠', 'T♠', '9♠'],
+                'mode': 'default'
+            },
+            {
+                'name': 'position_button',
+                'hand': ['K♣', 'Q♣'],
+                'opponents': 3,
+                'board': ['A♦', 'K♦', '7♣'],
+                'mode': 'default',
+                'hero_position': 'button',
+                'players_to_act': 0
+            },
+            {
+                'name': 'spr_calculation',
+                'hand': ['J♥', 'J♦'],
+                'opponents': 1,
+                'board': ['T♣', '8♦', '2♥'],
+                'mode': 'default',
+                'stack_sizes': [1000, 1200],
+                'pot_size': 200,
+                'bet_size': 0.5
             }
         ]
         
@@ -85,12 +124,29 @@ class TestResultComparator:
             
             for _ in range(3):
                 start = time.time()
-                result = solve_poker_hand(
-                    hero_hand=scenario['hand'],
-                    num_opponents=scenario['opponents'],
-                    board_cards=scenario['board'],
-                    simulation_mode=scenario['mode']
-                )
+                # Build kwargs with optional parameters
+                kwargs = {
+                    'hero_hand': scenario['hand'],
+                    'num_opponents': scenario['opponents'],
+                    'board_cards': scenario.get('board'),
+                    'simulation_mode': scenario['mode']
+                }
+                
+                # Add optional parameters if present
+                if 'tournament_context' in scenario:
+                    kwargs['tournament_context'] = scenario['tournament_context']
+                if 'stack_sizes' in scenario:
+                    kwargs['stack_sizes'] = scenario['stack_sizes']
+                if 'hero_position' in scenario:
+                    kwargs['hero_position'] = scenario['hero_position']
+                if 'players_to_act' in scenario:
+                    kwargs['players_to_act'] = scenario['players_to_act']
+                if 'pot_size' in scenario:
+                    kwargs['pot_size'] = scenario['pot_size']
+                if 'bet_size' in scenario:
+                    kwargs['bet_size'] = scenario['bet_size']
+                
+                result = solve_poker_hand(**kwargs)
                 elapsed = (time.time() - start) * 1000
                 
                 times.append(elapsed)
@@ -100,7 +156,8 @@ class TestResultComparator:
             avg_time = sum(times) / len(times)
             avg_win = sum(win_probs) / len(win_probs)
             
-            results['scenarios'][scenario['name']] = {
+            # Store results with additional metrics
+            scenario_results = {
                 'avg_time_ms': avg_time,
                 'avg_win_probability': avg_win,
                 'times': times,
@@ -108,6 +165,20 @@ class TestResultComparator:
                 'confidence_interval': result.confidence_interval,
                 'actual_simulations': result.actual_simulations
             }
+            
+            # Add new feature results if available
+            if result.icm_equity is not None:
+                scenario_results['icm_equity'] = result.icm_equity
+            if result.board_texture_score is not None:
+                scenario_results['board_texture'] = result.board_texture_score
+            if result.positional_advantage_score is not None:
+                scenario_results['positional_advantage'] = result.positional_advantage_score
+            if result.spr is not None:
+                scenario_results['spr'] = result.spr
+            if result.pot_odds is not None:
+                scenario_results['pot_odds'] = result.pot_odds
+            
+            results['scenarios'][scenario['name']] = scenario_results
             
             print(f" {avg_time:.1f}ms, win={avg_win:.3f}")
         
@@ -228,7 +299,10 @@ class TestResultComparator:
             'scenarios': {
                 name: {
                     'time_ms': data['avg_time_ms'],
-                    'win_prob': data['avg_win_probability']
+                    'win_prob': data['avg_win_probability'],
+                    'icm_equity': data.get('icm_equity'),
+                    'board_texture': data.get('board_texture'),
+                    'spr': data.get('spr')
                 }
                 for name, data in results['scenarios'].items()
             }
