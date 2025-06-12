@@ -11,6 +11,8 @@
 #include "constants.cuh"
 #include "hand_evaluator.cuh"
 #include "rng.cuh"
+#include "icm_calculator.cuh"
+#include "board_analyzer.cuh"
 #include <cooperative_groups.h>
 
 namespace cg = cooperative_groups;
@@ -235,33 +237,110 @@ extern "C" __global__ void solve_poker_hand_kernel(
     // Phase 4: Advanced metrics calculation (specialized warps)
     // Only first warp of first block computes these
     if (bid == 0 && tid < 32) {
-        // TODO: Implement ICM calculations
-        // TODO: Implement board texture analysis
-        // TODO: Implement SPR, pot odds, MDF calculations
-        // TODO: Implement range equity calculations
-        // TODO: Implement positional scoring
+        __syncwarp();
         
-        // For now, set placeholder values
-        if (tid == 0) {
-            if (has_tournament_context && stack_sizes[0] > 0) {
-                *icm_equity = 0.0f;  // TODO: Implement ICM
-                *bubble_factor = 1.0f;  // TODO: Implement bubble factor
+        // Thread 0: ICM calculations
+        if (tid == 0 && has_tournament_context && stack_sizes[0] > 0) {
+            // Count active players
+            int active_players = 0;
+            for (int i = 0; i < 7; i++) {
+                if (stack_sizes[i] > 0) active_players++;
             }
             
-            if (stack_sizes[0] > 0 && pot_size > 0) {
-                *spr = stack_sizes[0] / pot_size;
-                *pot_odds = bet_size / (1.0f + bet_size);
-                *mdf = 1.0f - (bet_size / (1.0f + 2.0f * bet_size));
-                *equity_needed = *pot_odds;
-                *commitment_threshold = 4.0f;  // SPR where we're committed
+            if (active_players >= 2 && players_remaining > 0) {
+                // Calculate ICM equity
+                if (active_players <= MAX_ICM_PLAYERS) {
+                    *icm_equity = calculate_icm_equity(
+                        stack_sizes, 
+                        active_players, 
+                        payouts, 
+                        10,  // max payouts
+                        0    // hero is always index 0
+                    );
+                } else {
+                    *icm_equity = calculate_icm_equity_large_field(
+                        stack_sizes, 
+                        active_players, 
+                        payouts, 
+                        10, 
+                        0
+                    );
+                }
+                
+                // Calculate bubble factor
+                *bubble_factor = calculate_bubble_factor(
+                    players_remaining,
+                    10,  // Assume top 10 paid
+                    average_stack,
+                    stack_sizes[0]
+                );
             }
-            
-            *board_texture_score = 0.5f;  // TODO: Implement texture analysis
-            *flush_draw_count = 0;  // TODO: Count flush draws
-            *straight_draw_count = 0;  // TODO: Count straight draws
-            *positional_advantage = 0.0f;  // TODO: Implement positional scoring
-            *hand_vulnerability = 0.0f;  // TODO: Implement vulnerability
         }
+        
+        // Thread 1: Board texture analysis
+        if (tid == 1 && board_cards_count >= 3) {
+            int flush_draws = 0, straight_draws = 0;
+            float texture = analyze_board_texture(
+                board_cards,  // Use the provided board cards
+                &flush_draws,
+                &straight_draws
+            );
+            
+            *board_texture_score = texture;
+            *flush_draw_count = flush_draws;
+            *straight_draw_count = straight_draws;
+        }
+        
+        // Thread 2: SPR and pot odds calculations
+        if (tid == 2 && stack_sizes[0] > 0 && pot_size > 0) {
+            *spr = stack_sizes[0] / pot_size;
+            
+            if (bet_size > 0) {
+                // bet_size is relative to pot (e.g., 0.5 = half pot)
+                float actual_bet = bet_size * pot_size;
+                *pot_odds = actual_bet / (pot_size + actual_bet);
+                *mdf = 1.0f - (actual_bet / (pot_size + 2.0f * actual_bet));
+                *equity_needed = *pot_odds;
+            }
+            
+            // Commitment threshold based on SPR
+            if (*spr < 1.0f) {
+                *commitment_threshold = 0.5f;  // Very committed
+            } else if (*spr < 3.0f) {
+                *commitment_threshold = 2.0f;  // Somewhat committed
+            } else {
+                *commitment_threshold = 4.0f;  // Not committed
+            }
+        }
+        
+        // Thread 3: Hand vulnerability
+        if (tid == 3) {
+            // Simple vulnerability calculation based on win probability
+            float win_prob = (float)shared->win_count[0] / 
+                            (float)(shared->win_count[0] + shared->tie_count[0] + shared->loss_count[0]);
+            
+            float texture = *board_texture_score;
+            *hand_vulnerability = calculate_hand_vulnerability(
+                win_prob,
+                texture,
+                num_opponents
+            );
+        }
+        
+        // Thread 4: Positional advantage
+        if (tid == 4 && hero_position_idx >= 0) {
+            // Simple positional scoring
+            // Late position = higher score
+            float pos_scores[6] = {0.0f, 0.2f, 0.4f, 0.8f, 0.6f, 0.3f}; // EP, MP, LP, BTN, SB, BB
+            *positional_advantage = pos_scores[hero_position_idx];
+            
+            // Adjust for number of players to act
+            if (players_to_act > 0) {
+                *positional_advantage *= (1.0f - 0.1f * players_to_act);
+            }
+        }
+        
+        __syncwarp();
     }
     
     // Phase 5: Final result aggregation (thread 0 of each block)

@@ -64,10 +64,14 @@ class GPUInputBuffers:
         
         # Board cards with padding
         board_cards = cp.full(5, -1, dtype=INT32)
-        if validated_inputs['board_cards']:
-            board_cards_np = np.array(validated_inputs['board_cards'], dtype=INT32)
-            board_cards[:len(board_cards_np)] = cp.asarray(board_cards_np)
-            board_cards_count = len(validated_inputs['board_cards'])
+        if validated_inputs.get('board_cards'):
+            board_list = validated_inputs['board_cards']
+            if isinstance(board_list, list):
+                board_cards_np = np.array(board_list, dtype=INT32)
+                board_cards[:len(board_cards_np)] = cp.asarray(board_cards_np)
+                board_cards_count = len(board_list)
+            else:
+                board_cards_count = 0
         else:
             board_cards_count = 0
         
@@ -78,8 +82,11 @@ class GPUInputBuffers:
         # Stack sizes with padding
         stack_sizes = cp.full(7, -1.0, dtype=FLOAT32)
         if 'stack_sizes' in validated_inputs and validated_inputs['stack_sizes']:
-            stack_sizes_np = np.array(validated_inputs['stack_sizes'], dtype=FLOAT32)
-            stack_sizes[:len(stack_sizes_np)] = cp.asarray(stack_sizes_np)
+            # Convert to numpy array first
+            stack_list = validated_inputs['stack_sizes']
+            if isinstance(stack_list, list):
+                stack_sizes_np = np.array(stack_list, dtype=FLOAT32)
+                stack_sizes[:len(stack_sizes_np)] = cp.asarray(stack_sizes_np)
         
         # Action mapping
         action_map = {'check': 0, 'bet': 1, 'raise': 2, 'reraise': 3}
@@ -98,9 +105,14 @@ class GPUInputBuffers:
         if has_tournament_context:
             tc = validated_inputs['tournament_context']
             if 'payouts' in tc and tc['payouts']:
-                payouts_np = np.array(tc['payouts'][:10], dtype=FLOAT32)
-                payouts[:len(payouts_np)] = cp.asarray(payouts_np)
-            players_remaining = tc.get('players_remaining', 0)
+                # Ensure payouts is a list
+                payout_list = tc['payouts']
+                if isinstance(payout_list, list):
+                    # Take up to 10 payouts
+                    payout_list = payout_list[:10]
+                    payouts_np = np.array(payout_list, dtype=FLOAT32)
+                    payouts[:len(payouts_np)] = cp.asarray(payouts_np)
+            players_remaining = int(tc.get('players_remaining', 0))
             average_stack = float(tc.get('average_stack', 0))
         
         # Tournament stage mapping

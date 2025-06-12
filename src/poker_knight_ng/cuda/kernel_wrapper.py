@@ -36,7 +36,7 @@ class PokerKernel:
         
         # Read all source files and combine them
         # First read headers in dependency order
-        header_files = ['constants.cuh', 'hand_evaluator.cuh', 'rng.cuh']
+        header_files = ['constants.cuh', 'hand_evaluator.cuh', 'rng.cuh', 'icm_calculator.cuh', 'board_analyzer.cuh']
         header_contents = []
         
         for header_file in header_files:
@@ -137,32 +137,32 @@ class PokerKernel:
         # Calculate grid configuration
         grid, block = self.calculate_grid_config(gpu_inputs.num_simulations)
         
-        # Prepare kernel arguments
+        # Prepare kernel arguments with proper type conversions
         args = (
             # Core inputs
             gpu_inputs.hero_cards,
-            gpu_inputs.num_opponents,
+            np.int32(gpu_inputs.num_opponents),
             gpu_inputs.board_cards,
-            gpu_inputs.board_cards_count,
-            gpu_inputs.num_simulations,
-            gpu_inputs.random_seed,
+            np.int32(gpu_inputs.board_cards_count),
+            np.int32(gpu_inputs.num_simulations),
+            np.uint32(gpu_inputs.random_seed),
             
             # Optional inputs
-            gpu_inputs.hero_position_idx,
+            np.int32(gpu_inputs.hero_position_idx),
             gpu_inputs.stack_sizes,
-            gpu_inputs.pot_size,
-            gpu_inputs.action_to_hero_idx,
-            gpu_inputs.bet_size,
-            gpu_inputs.street_idx,
-            gpu_inputs.players_to_act,
+            np.float32(gpu_inputs.pot_size),
+            np.int32(gpu_inputs.action_to_hero_idx),
+            np.float32(gpu_inputs.bet_size),
+            np.int32(gpu_inputs.street_idx),
+            np.int32(gpu_inputs.players_to_act),
             
             # Tournament context
-            gpu_inputs.has_tournament_context,
+            np.bool_(gpu_inputs.has_tournament_context),
             gpu_inputs.payouts,
-            gpu_inputs.players_remaining,
-            gpu_inputs.average_stack,
-            gpu_inputs.tournament_stage_idx,
-            gpu_inputs.blind_level,
+            np.int32(gpu_inputs.players_remaining),
+            np.float32(gpu_inputs.average_stack),
+            np.int32(gpu_inputs.tournament_stage_idx),
+            np.int32(gpu_inputs.blind_level),
             
             # Outputs
             gpu_outputs.win_probability,

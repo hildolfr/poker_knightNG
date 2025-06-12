@@ -109,7 +109,6 @@ def test_basic_solver():
         print(f"   ✗ Test failed: {e}")
         return False
     
-    return True
 
 
 def test_advanced_features():
@@ -169,7 +168,6 @@ def test_advanced_features():
         assert diff < 0.05, "Results should be within 5% across modes"
         print("   ✓ All modes consistent!")
     
-    return True
 
 
 def test_gpu_functionality():
@@ -188,7 +186,6 @@ def test_gpu_functionality():
         free_mem, total_mem = cp.cuda.runtime.memGetInfo()
         print(f"   Memory: {free_mem/1024**3:.1f}GB free / {total_mem/1024**3:.1f}GB total")
     
-    return True
 
 
 def main():
