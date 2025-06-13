@@ -256,7 +256,7 @@ extern "C" __global__ void solve_poker_hand_kernel(
                 float calc_avg_stack = (average_stack > 0) ? average_stack : (total_chips / active_players);
                 
                 // Always calculate bubble factor based on stack sizes
-                *bubble_factor = calculate_bubble_factor(
+                *bubble_factor = (float)calculate_bubble_factor(
                     (players_remaining > 0) ? players_remaining : active_players,
                     10,  // Assume top 10 paid
                     calc_avg_stack,
@@ -267,7 +267,7 @@ extern "C" __global__ void solve_poker_hand_kernel(
                 if (has_tournament_context && players_remaining > 0) {
                     // Calculate ICM equity
                     if (active_players <= MAX_ICM_PLAYERS) {
-                        *icm_equity = calculate_icm_equity(
+                        *icm_equity = (float)calculate_icm_equity(
                             stack_sizes, 
                             active_players, 
                             payouts, 
@@ -275,7 +275,7 @@ extern "C" __global__ void solve_poker_hand_kernel(
                             0    // hero is always index 0
                         );
                     } else {
-                        *icm_equity = calculate_icm_equity_large_field(
+                        *icm_equity = (float)calculate_icm_equity_large_field(
                             stack_sizes, 
                             active_players, 
                             payouts, 
@@ -341,7 +341,7 @@ extern "C" __global__ void solve_poker_hand_kernel(
                             (float)(shared->win_count[0] + shared->tie_count[0] + shared->loss_count[0]);
             
             float texture = *board_texture_score;
-            *hand_vulnerability = calculate_hand_vulnerability(
+            *hand_vulnerability = (float)calculate_hand_vulnerability(
                 win_prob,
                 texture,
                 num_opponents

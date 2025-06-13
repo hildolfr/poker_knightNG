@@ -167,26 +167,26 @@ __device__ inline float analyze_board_texture(
  * @param num_opponents Number of opponents
  * @return Vulnerability score (0 = invulnerable, 1 = very vulnerable)
  */
-__device__ inline float calculate_hand_vulnerability(
+__device__ inline double calculate_hand_vulnerability(
     float hand_strength,
     float board_texture,
     int num_opponents
 ) {
     // Strong hands on dry boards are less vulnerable
     if (hand_strength > 0.8f && board_texture < 0.3f) {
-        return 0.1f;
+        return 0.1;
     }
     
     // Medium hands on wet boards are very vulnerable
     if (hand_strength < 0.6f && board_texture > 0.7f) {
-        return 0.8f + 0.1f * num_opponents;
+        return 0.8 + 0.1 * (double)num_opponents;
     }
     
     // Linear interpolation based on board texture and opponents
-    float base_vulnerability = (1.0f - hand_strength) * board_texture;
-    float opponent_factor = 1.0f + (num_opponents - 1) * 0.1f;
+    double base_vulnerability = (1.0 - (double)hand_strength) * (double)board_texture;
+    double opponent_factor = 1.0 + ((double)num_opponents - 1) * 0.1;
     
-    return min(base_vulnerability * opponent_factor, 1.0f);
+    return min(base_vulnerability * opponent_factor, 1.0);
 }
 
 /*

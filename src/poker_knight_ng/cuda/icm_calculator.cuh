@@ -26,7 +26,7 @@
  * @param player_idx Index of player to calculate equity for
  * @return ICM equity as a fraction of total prize pool
  */
-__device__ inline float calculate_icm_equity(
+__device__ inline double calculate_icm_equity(
     const float* stack_sizes,
     int num_players,
     const float* payouts,
@@ -36,49 +36,49 @@ __device__ inline float calculate_icm_equity(
     // Quick validation
     if (num_players < 2 || num_players > MAX_ICM_PLAYERS || 
         player_idx >= num_players || stack_sizes[player_idx] <= 0) {
-        return 0.0f;
+        return 0.0;
     }
     
     // Calculate total chips
-    float total_chips = 0.0f;
+    double total_chips = 0.0;
     for (int i = 0; i < num_players; i++) {
         if (stack_sizes[i] > 0) {
-            total_chips += stack_sizes[i];
+            total_chips += (double)stack_sizes[i];
         }
     }
     
-    if (total_chips <= 0) return 0.0f;
+    if (total_chips <= 0) return 0.0;
     
     // For 2 players, it's simple - winner takes the difference in payouts
     if (num_players == 2) {
-        float p_win = stack_sizes[player_idx] / total_chips;
-        return p_win * payouts[0] + (1.0f - p_win) * payouts[1];
+        double p_win = (double)stack_sizes[player_idx] / total_chips;
+        return p_win * (double)payouts[0] + (1.0 - p_win) * (double)payouts[1];
     }
     
     // For 3+ players, use recursive ICM formula
     // This is computationally intensive, so we'll use an approximation
     // for larger fields
     
-    float equity = 0.0f;
-    float p_finish[MAX_ICM_PLAYERS];
+    double equity = 0.0;
+    double p_finish[MAX_ICM_PLAYERS];
     
     // Calculate probability of finishing in each position
     // Simplified approach: probability proportional to stack size
     for (int finish_pos = 0; finish_pos < min(num_players, num_payouts); finish_pos++) {
         if (finish_pos == 0) {
             // Probability of finishing first
-            p_finish[0] = stack_sizes[player_idx] / total_chips;
+            p_finish[0] = (double)stack_sizes[player_idx] / total_chips;
         } else {
             // Approximate probability of finishing in position 'finish_pos'
             // This is simplified - true ICM uses recursive calculation
-            float p_not_bust = 1.0f;
+            double p_not_bust = 1.0;
             for (int j = 0; j < finish_pos; j++) {
-                p_not_bust *= (1.0f - stack_sizes[player_idx] / total_chips);
+                p_not_bust *= (1.0 - (double)stack_sizes[player_idx] / total_chips);
             }
-            p_finish[finish_pos] = p_not_bust * (stack_sizes[player_idx] / total_chips);
+            p_finish[finish_pos] = p_not_bust * ((double)stack_sizes[player_idx] / total_chips);
         }
         
-        equity += p_finish[finish_pos] * payouts[finish_pos];
+        equity += p_finish[finish_pos] * (double)payouts[finish_pos];
     }
     
     return equity;
@@ -96,7 +96,7 @@ __device__ inline float calculate_icm_equity(
  * @param hero_stack Hero's stack size
  * @return Bubble factor (1.0 = normal, >1.0 = increased pressure)
  */
-__device__ inline float calculate_bubble_factor(
+__device__ inline double calculate_bubble_factor(
     int num_players,
     int num_payouts,
     float avg_stack,
@@ -104,32 +104,32 @@ __device__ inline float calculate_bubble_factor(
 ) {
     // No bubble pressure if already in the money
     if (num_players <= num_payouts) {
-        return 1.0f;
+        return 1.0;
     }
     
     // Calculate distance from bubble
     int players_to_bubble = num_players - num_payouts;
     
     // Base bubble factor increases as we approach the bubble
-    float base_factor = 1.0f + (0.5f / (float)(players_to_bubble + 1));
+    double base_factor = 1.0 + (0.5 / (double)(players_to_bubble + 1));
     
     // Adjust based on stack size relative to average
     // Short stacks feel more pressure, big stacks less
-    float stack_ratio = hero_stack / avg_stack;
-    float stack_adjustment = 1.0f;
+    double stack_ratio = (double)hero_stack / (double)avg_stack;
+    double stack_adjustment = 1.0;
     
-    if (stack_ratio < 0.5f) {
+    if (stack_ratio < 0.5) {
         // Very short stack - high pressure
-        stack_adjustment = 1.5f;
-    } else if (stack_ratio < 1.0f) {
+        stack_adjustment = 1.5;
+    } else if (stack_ratio < 1.0) {
         // Below average - some pressure
-        stack_adjustment = 1.0f + (1.0f - stack_ratio) * 0.5f;
-    } else if (stack_ratio > 2.0f) {
+        stack_adjustment = 1.0 + (1.0 - stack_ratio) * 0.5;
+    } else if (stack_ratio > 2.0) {
         // Big stack - can apply pressure
-        stack_adjustment = 0.8f;
+        stack_adjustment = 0.8;
     } else {
         // Above average - slight reduction
-        stack_adjustment = 1.0f - (stack_ratio - 1.0f) * 0.2f;
+        stack_adjustment = 1.0 - (stack_ratio - 1.0) * 0.2;
     }
     
     return base_factor * stack_adjustment;
@@ -139,33 +139,33 @@ __device__ inline float calculate_bubble_factor(
  * Simplified ICM calculation for large fields (10+ players).
  * Uses Malmuth-Harville formula approximation.
  */
-__device__ inline float calculate_icm_equity_large_field(
+__device__ inline double calculate_icm_equity_large_field(
     const float* stack_sizes,
     int num_players,
     const float* payouts,
     int num_payouts,
     int player_idx
 ) {
-    float total_chips = 0.0f;
+    double total_chips = 0.0;
     for (int i = 0; i < num_players; i++) {
-        total_chips += stack_sizes[i];
+        total_chips += (double)stack_sizes[i];
     }
     
-    if (total_chips <= 0) return 0.0f;
+    if (total_chips <= 0) return 0.0;
     
-    float my_stack = stack_sizes[player_idx];
-    float equity = 0.0f;
+    double my_stack = (double)stack_sizes[player_idx];
+    double equity = 0.0;
     
     // Use Malmuth-Harville approximation
     for (int place = 0; place < min(num_payouts, num_players); place++) {
-        float p_finish = my_stack / total_chips;
+        double p_finish = my_stack / total_chips;
         
         // Adjust probability for each position
         for (int i = 0; i < place; i++) {
-            p_finish *= (1.0f - my_stack / (total_chips - i * (total_chips / num_players)));
+            p_finish *= (1.0 - my_stack / (total_chips - i * (total_chips / (double)num_players)));
         }
         
-        equity += p_finish * payouts[place];
+        equity += p_finish * (double)payouts[place];
     }
     
     return equity;
