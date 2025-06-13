@@ -194,8 +194,11 @@ class TestICMEdgeCases:
             simulation_mode='fast'
         )
         
-        assert result.icm_equity is None, "ICM equity should be None without tournament context"
-        assert result.bubble_factor is None, "Bubble factor should be None without tournament context"
+        # Now provides chip EV and bubble factor even without tournament context
+        assert result.icm_equity is not None, "ICM equity (chip EV) should be calculated"
+        assert result.bubble_factor is not None, "Bubble factor should be calculated from stacks"
+        # With equal stacks, chip EV should be ~0.333
+        assert abs(result.icm_equity - 0.333) < 0.01
     
     def test_invalid_payouts(self):
         """Test handling of invalid payout structures."""

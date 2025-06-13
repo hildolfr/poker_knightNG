@@ -232,6 +232,11 @@ class PokerSolverServer:
         # Get memory manager stats
         memory_info = self.memory_manager.get_enhanced_memory_info()
         
+        # Extract keep-alive info safely
+        keep_alive_info = memory_info.get('keep_alive', {})
+        gpu_is_warm = keep_alive_info.get('is_warm', False)
+        seconds_since_activity = keep_alive_info.get('seconds_since_activity', 0.0)
+        
         return {
             'solve_count': self.solve_count,
             'total_solve_time_ms': self.total_solve_time,
@@ -239,8 +244,8 @@ class PokerSolverServer:
             'cold_start_time_ms': self.cold_start_time,
             'average_warm_solve_time_ms': avg_warm_time,
             'warmup_benefit_ms': self.cold_start_time - avg_warm_time if self.cold_start_time and avg_warm_time else 0,
-            'gpu_is_warm': memory_info['keep_alive']['is_warm'],
-            'seconds_since_activity': memory_info['keep_alive']['seconds_since_activity'],
+            'gpu_is_warm': gpu_is_warm,
+            'seconds_since_activity': seconds_since_activity,
             'memory_info': memory_info
         }
     

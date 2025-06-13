@@ -137,9 +137,9 @@ class TestInputValidation:
         result = validate_inputs(['A♠', 'K♠'], 1, tournament_context=valid_context)
         assert result['tournament_context'] == valid_context
         
-        # Missing required keys
-        with pytest.raises(ValidationError, match="must contain keys"):
-            validate_inputs(['A♠', 'K♠'], 1, tournament_context={'payouts': [50, 30, 20]})
+        # Missing payouts key (the only required key now)
+        with pytest.raises(ValidationError, match="must contain 'payouts' key"):
+            validate_inputs(['A♠', 'K♠'], 1, tournament_context={'players_remaining': 10})
     
     def test_advanced_parameters(self):
         """Test advanced parameter validation."""
