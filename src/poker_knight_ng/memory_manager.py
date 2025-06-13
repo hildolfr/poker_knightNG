@@ -391,6 +391,11 @@ class MemoryManager:
     
     def _start_heartbeat(self):
         """Start the heartbeat thread to keep GPU warm."""
+        # Don't start if already running
+        if self._heartbeat_thread and self._heartbeat_thread.is_alive():
+            logger.debug("Heartbeat thread already running, skipping start")
+            return
+            
         self._heartbeat_thread = threading.Thread(
             target=self._heartbeat_worker,
             daemon=True
@@ -468,9 +473,6 @@ class MemoryManager:
         """Get enhanced memory information including keep-alive status."""
         base_info = self.get_memory_info()
         
-        if not self.enable_keep_alive:
-            return base_info
-        
         with self._lock:
             time_since_activity = time.time() - self._last_activity_time
             warm_buffer_info = self.warm_buffers.get_memory_usage() if self.warm_buffers else {}
@@ -481,7 +483,7 @@ class MemoryManager:
                     'enabled': self.enable_keep_alive,
                     'seconds_since_activity': time_since_activity,
                     'keep_alive_seconds': self.keep_alive_seconds,
-                    'is_warm': time_since_activity < self.keep_alive_seconds,
+                    'is_warm': self.enable_keep_alive and time_since_activity < self.keep_alive_seconds,
                     'activity_count': len(self._activity_history)
                 },
                 'warm_buffers': warm_buffer_info
@@ -579,9 +581,51 @@ def get_memory_manager(keep_alive_seconds: float = 30.0,
         )
     elif (_memory_manager.keep_alive_seconds != keep_alive_seconds or 
           _memory_manager.enable_keep_alive != enable_keep_alive):
-        # Update existing instance
+        # Handle keep-alive state changes
+        old_enable_keep_alive = _memory_manager.enable_keep_alive
+        
+        # Update configuration
         _memory_manager.keep_alive_seconds = keep_alive_seconds
         _memory_manager.enable_keep_alive = enable_keep_alive
+        
+        # Handle enabling keep-alive
+        if enable_keep_alive and not old_enable_keep_alive:
+            logger.info("Enabling keep-alive on existing memory manager")
+            
+            # Initialize warm buffers if needed
+            if _memory_manager.warm_buffers is None:
+                _memory_manager.warm_buffers = WarmBufferPool()
+            
+            # Reset shutdown event if needed
+            if not hasattr(_memory_manager, '_shutdown_event') or _memory_manager._shutdown_event is None:
+                _memory_manager._shutdown_event = threading.Event()
+            elif _memory_manager._shutdown_event.is_set():
+                _memory_manager._shutdown_event.clear()
+            
+            # Initialize heartbeat thread if needed
+            if not hasattr(_memory_manager, '_heartbeat_thread'):
+                _memory_manager._heartbeat_thread = None
+            
+            # Start heartbeat thread
+            _memory_manager._start_heartbeat()
+            
+        # Handle disabling keep-alive
+        elif not enable_keep_alive and old_enable_keep_alive:
+            logger.info("Disabling keep-alive on existing memory manager")
+            
+            # Stop heartbeat thread
+            _memory_manager._shutdown_event.set()
+            if _memory_manager._heartbeat_thread:
+                _memory_manager._heartbeat_thread.join(timeout=1.0)
+                _memory_manager._heartbeat_thread = None
+            
+            # Cancel cleanup timer
+            if _memory_manager._cleanup_timer:
+                _memory_manager._cleanup_timer.cancel()
+                _memory_manager._cleanup_timer = None
+            
+            # Clear warm buffers
+            _memory_manager.warm_buffers = None
     
     return _memory_manager
 

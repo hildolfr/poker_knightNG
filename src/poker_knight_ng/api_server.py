@@ -61,6 +61,9 @@ class PokerSolverServer:
         self.cold_start_time = None
         self.warm_solve_times = []
         
+        # Track if we're in warmup
+        self._warming_up = False
+        
         # Perform auto warmup if requested
         if auto_warmup:
             self.warmup()
@@ -78,19 +81,26 @@ class PokerSolverServer:
         # Force memory manager warmup
         self.memory_manager.force_warmup()
         
-        # Run dummy simulations for each mode
-        warmup_configs = [
-            (['A♠', 'A♥'], 1, 'fast'),
-            (['K♥', 'K♦'], 2, 'default'),
-            (['Q♣', 'Q♦'], 3, 'precision')
-        ]
+        # Set warmup flag
+        self._warming_up = True
         
-        for hand, opponents, mode in warmup_configs:
-            _ = solve_poker_hand(
-                hero_hand=hand,
-                num_opponents=opponents,
-                simulation_mode=mode
-            )
+        try:
+            # Run dummy simulations for each mode using server's solve method
+            # This ensures we use the server's memory manager settings
+            warmup_configs = [
+                (['A♠', 'A♥'], 1, 'fast'),
+                (['K♥', 'K♦'], 2, 'default'),
+                (['Q♣', 'Q♦'], 3, 'precision')
+            ]
+            
+            for hand, opponents, mode in warmup_configs:
+                _ = self.solve(
+                    hero_hand=hand,
+                    num_opponents=opponents,
+                    simulation_mode=mode
+                )
+        finally:
+            self._warming_up = False
         
         warmup_time = (time.time() - start_time) * 1000
         logger.info(f"GPU warmup complete in {warmup_time:.1f}ms")
@@ -128,24 +138,36 @@ class PokerSolverServer:
         # Mark activity for keep-alive
         self.memory_manager.mark_activity()
         
-        # Solve the hand
-        result = solve_poker_hand(
-            hero_hand=hero_hand,
-            num_opponents=num_opponents,
-            board_cards=board_cards,
-            simulation_mode=simulation_mode,
-            **kwargs
-        )
+        # Temporarily set global keep-alive config to match server settings
+        from .api import _gpu_keepalive_config
+        original_config = _gpu_keepalive_config.copy()
+        _gpu_keepalive_config['enabled'] = self.enable_keep_alive
+        _gpu_keepalive_config['keep_alive_seconds'] = self.keep_alive_seconds
         
-        # Track statistics
+        try:
+            # Solve the hand
+            result = solve_poker_hand(
+                hero_hand=hero_hand,
+                num_opponents=num_opponents,
+                board_cards=board_cards,
+                simulation_mode=simulation_mode,
+                **kwargs
+            )
+        finally:
+            # Restore original config
+            _gpu_keepalive_config.update(original_config)
+        
+        # Track statistics (but not during warmup)
         solve_time = (time.time() - start_time) * 1000
-        self.solve_count += 1
-        self.total_solve_time += solve_time
         
-        if self.solve_count > 1:  # Not the first solve
-            self.warm_solve_times.append(solve_time)
-            if len(self.warm_solve_times) > 100:
-                self.warm_solve_times.pop(0)
+        if not self._warming_up:
+            self.solve_count += 1
+            self.total_solve_time += solve_time
+            
+            if self.solve_count > 1:  # Not the first solve
+                self.warm_solve_times.append(solve_time)
+                if len(self.warm_solve_times) > 100:
+                    self.warm_solve_times.pop(0)
         
         return result
     
