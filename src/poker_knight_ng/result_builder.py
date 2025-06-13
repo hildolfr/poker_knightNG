@@ -116,8 +116,8 @@ def build_simulation_result(
         hand_category_frequencies=hand_freq_dict
     )
     
-    # Add multi-way analysis if applicable
-    if validated_inputs['num_opponents'] >= 2 or validated_inputs.get('hero_position'):
+    # Add multi-way analysis if applicable (even for 2 players if position data exists)
+    if validated_inputs['num_opponents'] >= 1 or validated_inputs.get('hero_position'):
         position_names = ['early', 'middle', 'late', 'button', 'sb', 'bb']
         position_equity = {}
         fold_equity = {}
@@ -125,75 +125,71 @@ def build_simulation_result(
         for i, pos in enumerate(position_names):
             if i < len(cpu_results['position_equity']):
                 equity = cpu_results['position_equity'][i]
-                if equity > 0:  # Only include non-zero values
-                    position_equity[pos] = equity
+                # Include all values, even zeros, to show what was calculated
+                position_equity[pos] = equity
                     
             if i < len(cpu_results['fold_equity']):
                 fold = cpu_results['fold_equity'][i]
-                if fold > 0:
-                    fold_equity[pos] = fold
+                fold_equity[pos] = fold
         
+        # Always include if we have any position data
         if position_equity:
             result.position_aware_equity = position_equity
         if fold_equity:
             result.fold_equity_estimates = fold_equity
             
-        # Add placeholder multi-way statistics
+        # Add multi-way statistics
         result.multi_way_statistics = {
             'players': validated_inputs['num_opponents'] + 1,
             'simulation_mode': validated_inputs['simulation_mode']
         }
     
     # Add tournament/ICM metrics if stack sizes provided
-    if validated_inputs.get('stack_sizes') and cpu_results.get('icm_equity', 0) > 0:
-        result.icm_equity = cpu_results['icm_equity']
-        result.bubble_factor = cpu_results['bubble_factor']
-        result.stack_to_pot_ratio = cpu_results['spr']
+    if validated_inputs.get('stack_sizes'):
+        # Include ICM values even if 0 to show calculation was attempted
+        result.icm_equity = cpu_results.get('icm_equity', 0.0)
+        result.bubble_factor = cpu_results.get('bubble_factor', 1.0)
         
-        # Add tournament pressure if in tournament context
-        if validated_inputs.get('tournament_context'):
-            result.tournament_pressure = {
-                'icm_pressure': cpu_results.get('bubble_factor', 1.0),
-                'stage': validated_inputs.get('tournament_stage', 'unknown')
-            }
+        # Stack to pot ratio can be calculated even without ICM
+        if cpu_results.get('spr', 0) > 0:
+            result.stack_to_pot_ratio = cpu_results['spr']
+        
+        # Add tournament pressure if we have stack data (even without full tournament context)
+        result.tournament_pressure = {
+            'icm_pressure': cpu_results.get('bubble_factor', 1.0),
+            'stage': validated_inputs.get('tournament_stage', 'early'),
+            'effective_stacks': min([s for s in validated_inputs['stack_sizes'] if s > 0], default=0)
+        }
     
-    # Add advanced analysis fields
-    if cpu_results.get('spr', 0) > 0:
-        result.spr = cpu_results['spr']
-    if cpu_results.get('pot_odds', 0) > 0:
-        result.pot_odds = cpu_results['pot_odds']
-    if cpu_results.get('mdf', 0) > 0:
-        result.mdf = cpu_results['mdf']
-    if cpu_results.get('equity_needed', 0) > 0:
-        result.equity_needed = cpu_results['equity_needed']
-    if cpu_results.get('commitment_threshold', 0) > 0:
-        result.commitment_threshold = cpu_results['commitment_threshold']
+    # Add advanced analysis fields (include zeros to show what was calculated)
+    result.spr = cpu_results.get('spr', 0.0)
+    result.pot_odds = cpu_results.get('pot_odds', 0.0)
+    result.mdf = cpu_results.get('mdf', 0.0)
+    result.equity_needed = cpu_results.get('equity_needed', 0.0)
+    result.commitment_threshold = cpu_results.get('commitment_threshold', 0.0)
     
     # Board texture and draws
-    if cpu_results.get('board_texture_score', 0) > 0:
-        result.board_texture_score = cpu_results['board_texture_score']
-        
-    if cpu_results.get('flush_draw_count', 0) > 0 or cpu_results.get('straight_draw_count', 0) > 0:
+    result.board_texture_score = cpu_results.get('board_texture_score', 0.0)
+    
+    # Always include draw combinations if board analysis was attempted
+    if validated_inputs.get('board_cards') and len(validated_inputs['board_cards']) >= 3:
         result.draw_combinations = {
             'flush_draws': cpu_results.get('flush_draw_count', 0),
             'straight_draws': cpu_results.get('straight_draw_count', 0)
         }
     
-    # Range analysis
-    if any(cpu_results.get('equity_percentiles', [])):
+    # Range analysis - include all percentiles even if 0
+    if 'equity_percentiles' in cpu_results:
         percentiles = ['10', '20', '30', '50', '100']
         equity_dict = {}
         for i, pct in enumerate(percentiles):
             if i < len(cpu_results['equity_percentiles']):
                 value = cpu_results['equity_percentiles'][i]
-                if value > 0:
-                    equity_dict[f'top_{pct}_percent'] = value
-        if equity_dict:
-            result.equity_vs_range_percentiles = equity_dict
+                equity_dict[f'top_{pct}_percent'] = value
+        result.equity_vs_range_percentiles = equity_dict
     
-    if cpu_results.get('positional_advantage', 0) > 0:
-        result.positional_advantage_score = cpu_results['positional_advantage']
-    if cpu_results.get('hand_vulnerability', 0) > 0:
-        result.hand_vulnerability = cpu_results['hand_vulnerability']
+    # Include positional advantage and vulnerability even if 0
+    result.positional_advantage_score = cpu_results.get('positional_advantage', 0.0)
+    result.hand_vulnerability = cpu_results.get('hand_vulnerability', 0.0)
     
     return result

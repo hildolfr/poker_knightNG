@@ -239,41 +239,55 @@ extern "C" __global__ void solve_poker_hand_kernel(
     if (bid == 0 && tid < 32) {
         __syncwarp();
         
-        // Thread 0: ICM calculations
-        if (tid == 0 && has_tournament_context && stack_sizes[0] > 0) {
+        // Thread 0: ICM calculations and tournament metrics
+        if (tid == 0 && stack_sizes[0] > 0) {
             // Count active players
             int active_players = 0;
+            float total_chips = 0.0f;
             for (int i = 0; i < 7; i++) {
-                if (stack_sizes[i] > 0) active_players++;
+                if (stack_sizes[i] > 0) {
+                    active_players++;
+                    total_chips += stack_sizes[i];
+                }
             }
             
-            if (active_players >= 2 && players_remaining > 0) {
-                // Calculate ICM equity
-                if (active_players <= MAX_ICM_PLAYERS) {
-                    *icm_equity = calculate_icm_equity(
-                        stack_sizes, 
-                        active_players, 
-                        payouts, 
-                        10,  // max payouts
-                        0    // hero is always index 0
-                    );
-                } else {
-                    *icm_equity = calculate_icm_equity_large_field(
-                        stack_sizes, 
-                        active_players, 
-                        payouts, 
-                        10, 
-                        0
-                    );
-                }
+            if (active_players >= 2) {
+                // Calculate average stack
+                float calc_avg_stack = (average_stack > 0) ? average_stack : (total_chips / active_players);
                 
-                // Calculate bubble factor
+                // Always calculate bubble factor based on stack sizes
                 *bubble_factor = calculate_bubble_factor(
-                    players_remaining,
+                    (players_remaining > 0) ? players_remaining : active_players,
                     10,  // Assume top 10 paid
-                    average_stack,
+                    calc_avg_stack,
                     stack_sizes[0]
                 );
+                
+                // Full ICM calculations only with tournament context and payouts
+                if (has_tournament_context && players_remaining > 0) {
+                    // Calculate ICM equity
+                    if (active_players <= MAX_ICM_PLAYERS) {
+                        *icm_equity = calculate_icm_equity(
+                            stack_sizes, 
+                            active_players, 
+                            payouts, 
+                            10,  // max payouts
+                            0    // hero is always index 0
+                        );
+                    } else {
+                        *icm_equity = calculate_icm_equity_large_field(
+                            stack_sizes, 
+                            active_players, 
+                            payouts, 
+                            10, 
+                            0
+                        );
+                    }
+                } else {
+                    // Without full tournament context, estimate ICM based on chip distribution
+                    // Simple chip EV model: your chips / total chips
+                    *icm_equity = stack_sizes[0] / total_chips;
+                }
             }
         }
         
@@ -292,18 +306,25 @@ extern "C" __global__ void solve_poker_hand_kernel(
         }
         
         // Thread 2: SPR and pot odds calculations
-        if (tid == 2 && stack_sizes[0] > 0 && pot_size > 0) {
-            *spr = stack_sizes[0] / pot_size;
-            
-            if (bet_size > 0) {
-                // bet_size is relative to pot (e.g., 0.5 = half pot)
-                float actual_bet = bet_size * pot_size;
-                *pot_odds = actual_bet / (pot_size + actual_bet);
-                *mdf = 1.0f - (actual_bet / (pot_size + 2.0f * actual_bet));
-                *equity_needed = *pot_odds;
+        if (tid == 2 && stack_sizes[0] > 0) {
+            if (pot_size > 0) {
+                *spr = stack_sizes[0] / pot_size;
+                
+                if (bet_size > 0) {
+                    // bet_size is relative to pot (e.g., 0.5 = half pot)
+                    float actual_bet = bet_size * pot_size;
+                    *pot_odds = actual_bet / (pot_size + actual_bet);
+                    *mdf = 1.0f - (actual_bet / (pot_size + 2.0f * actual_bet));
+                    *equity_needed = *pot_odds;
+                }
+            } else {
+                // When pot is 0, calculate effective stack in big blinds
+                // Assume big blind = 1.0 if not specified
+                float big_blind = 1.0f;
+                *spr = stack_sizes[0] / big_blind;  // Effective stack depth
             }
             
-            // Commitment threshold based on SPR
+            // Commitment threshold based on SPR (works for both cases)
             if (*spr < 1.0f) {
                 *commitment_threshold = 0.5f;  // Very committed
             } else if (*spr < 3.0f) {
