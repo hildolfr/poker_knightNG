@@ -11,6 +11,13 @@ __author__ = "Hildolfr"
 # Main API export
 from poker_knight_ng.api import solve_poker_hand
 
+# Server API exports
+from poker_knight_ng.api_server import (
+    PokerSolverServer,
+    PokerSolverPool,
+    create_poker_server,
+)
+
 # Card utilities
 from poker_knight_ng.card_utils import (
     card_to_int,
@@ -23,7 +30,13 @@ from poker_knight_ng.card_utils import (
 )
 
 __all__ = [
+    # Main API
     "solve_poker_hand",
+    # Server API
+    "PokerSolverServer",
+    "PokerSolverPool",
+    "create_poker_server",
+    # Card utilities
     "card_to_int",
     "int_to_card", 
     "parse_hand",
