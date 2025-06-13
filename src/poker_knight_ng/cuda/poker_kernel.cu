@@ -116,7 +116,14 @@ extern "C" __global__ void solve_poker_hand_kernel(
     int thread_hand_counts[10] = {0};
     
     // Phase 2: Monte Carlo simulation loop (grid-stride pattern)
-    for (int sim = global_tid; sim < num_simulations; sim += total_threads) {
+    // Process simulations in pairs for antithetic variates
+    int num_pairs = (num_simulations + 1) / 2;  // Round up
+    for (int pair_idx = global_tid; pair_idx < num_pairs; pair_idx += total_threads) {
+        // Each pair consists of one normal and one antithetic simulation
+        for (int is_antithetic = 0; is_antithetic < 2; is_antithetic++) {
+            // Skip second simulation if we've reached the total count
+            int sim = pair_idx * 2 + is_antithetic;
+            if (sim >= num_simulations) break;
         // Deal remaining board cards if needed
         int simulation_board[5];
         for (int i = 0; i < 5; i++) {
@@ -131,7 +138,7 @@ extern "C" __global__ void solve_poker_hand_kernel(
         if (board_cards_count < 5) {
             int cards_to_deal = 5 - board_cards_count;
             int dealt_cards[5];
-            deal_cards(dealt_cards, cards_to_deal, known_cards, num_known, &rng_state);
+            deal_cards(dealt_cards, cards_to_deal, known_cards, num_known, &rng_state, is_antithetic);
             
             // Fill in missing board cards
             int dealt_idx = 0;
@@ -170,7 +177,7 @@ extern "C" __global__ void solve_poker_hand_kernel(
         for (int opp = 0; opp < num_opponents; opp++) {
             // Deal opponent hole cards
             int opp_hole[2];
-            deal_cards(opp_hole, 2, excluded_cards, num_excluded, &rng_state);
+            deal_cards(opp_hole, 2, excluded_cards, num_excluded, &rng_state, is_antithetic);
             
             // Create opponent's 7-card hand
             int opp_hand[7];
@@ -204,6 +211,7 @@ extern "C" __global__ void solve_poker_hand_kernel(
         } else {
             thread_losses++;
         }
+        }  // End of antithetic loop
     }
     
     // Phase 3: Statistical reduction within block

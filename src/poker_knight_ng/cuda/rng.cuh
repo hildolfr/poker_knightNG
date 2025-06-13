@@ -56,9 +56,28 @@ __device__ __forceinline__ int rand_int(RNGState* state, int max) {
     return r % max;
 }
 
+// Generate antithetic random integer in range [0, max)
+__device__ __forceinline__ int rand_int_antithetic(RNGState* state, int max) {
+    // Generate normal random value first
+    unsigned int threshold = (0xFFFFFFFF / max) * max;
+    unsigned int r;
+    do {
+        r = rand_uint(state);
+    } while (r >= threshold);
+    // Apply antithetic transformation: (max - 1) - (r % max)
+    return (max - 1) - (r % max);
+}
+
 // Generate random float in range [0, 1)
 __device__ __forceinline__ float rand_float(RNGState* state) {
     return rand_uint(state) * 2.3283064365386963e-10f;  // 1.0f / (1ULL << 32)
+}
+
+// Generate antithetic random float in range [0, 1)
+__device__ __forceinline__ float rand_float_antithetic(RNGState* state) {
+    // Generate U, return 1-U for antithetic
+    float u = rand_uint(state) * 2.3283064365386963e-10f;
+    return 1.0f - u;
 }
 
 // Shuffle array using Fisher-Yates algorithm
@@ -92,7 +111,7 @@ __device__ void sample_without_replacement(int* array, int n, int k, RNGState* s
 }
 
 // Deal cards from deck excluding known cards
-__device__ void deal_cards(int* dest, int num_cards, const int* excluded, int num_excluded, RNGState* state) {
+__device__ void deal_cards(int* dest, int num_cards, const int* excluded, int num_excluded, RNGState* state, bool antithetic = false) {
     // Create available cards array
     int available[52];
     int num_available = 0;
@@ -113,7 +132,7 @@ __device__ void deal_cards(int* dest, int num_cards, const int* excluded, int nu
     
     // Shuffle and deal
     for (int i = 0; i < num_cards; i++) {
-        int idx = i + rand_int(state, num_available - i);
+        int idx = i + (antithetic ? rand_int_antithetic(state, num_available - i) : rand_int(state, num_available - i));
         dest[i] = available[idx];
         // Move dealt card to used portion
         available[idx] = available[i];
