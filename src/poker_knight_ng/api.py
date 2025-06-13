@@ -19,6 +19,12 @@ from .result_builder import build_simulation_result
 # Configure logging
 logger = logging.getLogger(__name__)
 
+# Global configuration for GPU keep-alive
+_gpu_keepalive_config = {
+    'enabled': False,
+    'keep_alive_seconds': 30.0
+}
+
 
 def solve_poker_hand(
     hero_hand: List[str],
@@ -93,7 +99,13 @@ def solve_poker_hand(
             )
             
             # Step 2: Get memory manager and activate appropriate pool
-            memory_manager = get_memory_manager()
+            memory_manager = get_memory_manager(
+                keep_alive_seconds=_gpu_keepalive_config['keep_alive_seconds'],
+                enable_keep_alive=_gpu_keepalive_config['enabled']
+            )
+            if _gpu_keepalive_config['enabled']:
+                memory_manager.mark_activity()  # Mark GPU activity
+            
             memory_manager.activate_pool(current_mode)
             
             try:
@@ -184,6 +196,57 @@ def solve_poker_hand(
         f"GPU out of memory even after {attempt} attempts to reduce simulation count. "
         f"Consider using a smaller batch size or upgrading GPU memory."
     )
+
+
+def enable_gpu_keepalive(keep_alive_seconds: float = 30.0) -> None:
+    """
+    Enable GPU keep-alive for standalone solve_poker_hand calls.
+    
+    When enabled, the GPU will stay warm between solve_poker_hand calls,
+    dramatically reducing latency for subsequent calculations.
+    
+    Args:
+        keep_alive_seconds: Time to keep GPU warm after last calculation (default: 30.0)
+        
+    Example:
+        >>> enable_gpu_keepalive(60.0)  # Keep GPU warm for 60 seconds
+        >>> result1 = solve_poker_hand(['A♠', 'A♥'], 2)  # Cold start
+        >>> time.sleep(5)
+        >>> result2 = solve_poker_hand(['K♠', 'K♥'], 2)  # Warm! Much faster
+    """
+    global _gpu_keepalive_config
+    _gpu_keepalive_config['enabled'] = True
+    _gpu_keepalive_config['keep_alive_seconds'] = keep_alive_seconds
+    logger.info(f"GPU keep-alive enabled with {keep_alive_seconds}s timeout")
+
+
+def disable_gpu_keepalive() -> None:
+    """
+    Disable GPU keep-alive for standalone solve_poker_hand calls.
+    
+    This returns to the default behavior where each call starts cold.
+    Any active keep-alive resources will be cleaned up.
+    """
+    global _gpu_keepalive_config
+    was_enabled = _gpu_keepalive_config['enabled']
+    _gpu_keepalive_config['enabled'] = False
+    
+    if was_enabled:
+        # Clean up memory manager if it exists
+        from .memory_manager import _memory_manager
+        if _memory_manager is not None and _memory_manager.enable_keep_alive:
+            _memory_manager.cleanup()
+        logger.info("GPU keep-alive disabled and resources cleaned up")
+
+
+def is_gpu_keepalive_enabled() -> bool:
+    """Check if GPU keep-alive is currently enabled."""
+    return _gpu_keepalive_config['enabled']
+
+
+def get_gpu_keepalive_config() -> Dict[str, Any]:
+    """Get current GPU keep-alive configuration."""
+    return _gpu_keepalive_config.copy()
 
 
 # Convenience function for backwards compatibility with string inputs

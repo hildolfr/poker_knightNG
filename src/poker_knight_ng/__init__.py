@@ -9,7 +9,13 @@ __version__ = "0.1.0"
 __author__ = "Hildolfr"
 
 # Main API export
-from poker_knight_ng.api import solve_poker_hand
+from poker_knight_ng.api import (
+    solve_poker_hand,
+    enable_gpu_keepalive,
+    disable_gpu_keepalive,
+    is_gpu_keepalive_enabled,
+    get_gpu_keepalive_config,
+)
 
 # Server API exports
 from poker_knight_ng.api_server import (
@@ -32,6 +38,10 @@ from poker_knight_ng.card_utils import (
 __all__ = [
     # Main API
     "solve_poker_hand",
+    "enable_gpu_keepalive",
+    "disable_gpu_keepalive", 
+    "is_gpu_keepalive_enabled",
+    "get_gpu_keepalive_config",
     # Server API
     "PokerSolverServer",
     "PokerSolverPool",

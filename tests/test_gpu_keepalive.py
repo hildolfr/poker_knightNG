@@ -11,7 +11,7 @@ sys.path.insert(0, '/home/user/Documents/poker_knightNG/src')
 
 import pytest
 from poker_knight_ng import create_poker_server, PokerSolverServer
-from poker_knight_ng.memory_manager_enhanced import get_enhanced_memory_manager
+from poker_knight_ng.memory_manager import get_memory_manager
 
 
 class TestGPUKeepAlive:
@@ -155,7 +155,7 @@ class TestGPUKeepAlive:
     def test_memory_info(self):
         """Test enhanced memory info reporting."""
         # Force new instance for clean test
-        mem_manager = get_enhanced_memory_manager(
+        mem_manager = get_memory_manager(
             keep_alive_seconds=45,  # Different value to test
             enable_keep_alive=True,
             force_new=True

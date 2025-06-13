@@ -11,7 +11,6 @@ from typing import List, Dict, Any, Optional, Union
 from contextlib import contextmanager
 
 from .api import solve_poker_hand
-from .memory_manager_enhanced import get_enhanced_memory_manager
 from .memory_manager import get_memory_manager
 from .cuda.kernel_wrapper import get_poker_kernel
 from .result_builder import SimulationResult
@@ -47,8 +46,8 @@ class PokerSolverServer:
         self.enable_keep_alive = enable_keep_alive
         self.use_warm_buffers = use_warm_buffers
         
-        # Initialize enhanced memory manager
-        self.memory_manager = get_enhanced_memory_manager(
+        # Initialize memory manager with keep-alive
+        self.memory_manager = get_memory_manager(
             keep_alive_seconds=keep_alive_seconds,
             enable_keep_alive=enable_keep_alive
         )
@@ -257,7 +256,7 @@ class PokerSolverServer:
                    f"avg time: {stats['average_solve_time_ms']:.1f}ms")
         
         # Cleanup will happen automatically via atexit, but we can force it
-        self.memory_manager.enhanced_cleanup()
+        self.memory_manager.cleanup()
 
 
 class PokerSolverPool:
