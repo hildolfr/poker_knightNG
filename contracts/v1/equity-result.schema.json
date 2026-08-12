@@ -1,0 +1,382 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://poker-knight-ng.dev/contracts/v1/equity-result.schema.json",
+  "title": "Poker Knight NG v1 equity result",
+  "description": "Successful, complete deterministic Texas Hold'em equity-solve result only.",
+  "$comment": "This schema represents success only: failures use problem.schema.json and MUST NOT include partial counters. Wire JSON is not ADR 0003 canonical case serialization. Semantic validation is normative: completed_trials == requested_trials; ties == sum(tie_by_other_winners); unique_wins + ties + losses == completed_trials; bins greater than opponent_count are zero; category counters sum to completed_trials; equity_share_units == 420*unique_wins + sum((420/(k+1))*bin[k]); probability fractions MUST be represented exactly and unreduced as unique_win={unique_wins, completed_trials}, tie={ties, completed_trials}, loss={losses, completed_trials}, showdown_equity={equity_share_units, 420*completed_trials}; and no merely equivalent reduced representation is accepted. Violations map to INTERNAL_ERROR (or RNG_REJECTION_EXHAUSTED if applicable) and no success result is returned. Provenance identifier regexes are generated/centralized definitions and MUST have committed generator/conformance tests in Phase 1.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contract_version",
+    "backend",
+    "rng",
+    "case_hash",
+    "seed",
+    "requested_trials",
+    "completed_trials",
+    "unique_wins",
+    "ties",
+    "tie_by_other_winners",
+    "losses",
+    "equity_share_units",
+    "hero_category_counts",
+    "probabilities",
+    "timing",
+    "provenance"
+  ],
+  "properties": {
+    "contract_version": {
+      "const": "v1",
+      "description": "Result contract version. Provenance: copied from accepted v1 request. Planned test: const validation."
+    },
+    "backend": {
+      "enum": [
+        "cpu_reference",
+        "cuda"
+      ],
+      "description": "Backend that actually executed; equals requested backend because fallback is forbidden. Planned test: enum validation and request/result coherence."
+    },
+    "rng": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "algorithm_id",
+        "algorithm_version"
+      ],
+      "description": "ADR 0003 sampler identity used for this result. Planned test: exact identity.",
+      "properties": {
+        "algorithm_id": {
+          "const": "poker-knight-ng/philox4x32-10"
+        },
+        "algorithm_version": {
+          "const": "1",
+          "description": "Canonical decimal version token, parsed to the internal version integer only after schema validation."
+        }
+      }
+    },
+    "case_hash": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$",
+      "description": "Lowercase hexadecimal SHA-256 of ADR 0003 canonical case bytes, excluding seed and trials. Provenance: canonicalizer. Planned test: exact format and recomputation."
+    },
+    "seed": {
+      "type": "string",
+      "pattern": "^0x[0-9a-f]{16}$",
+      "description": "Explicit replay seed encoded identically to request. Provenance: accepted request. Planned test: canonical seed format."
+    },
+    "requested_trials": {
+      "description": "Canonical decimal requested trial count. Provenance: accepted request. Planned test: decimal uint64 form and equality with completed_trials.",
+      "$ref": "#/$defs/trialCount"
+    },
+    "completed_trials": {
+      "description": "Canonical decimal trials completed. Successful v1 result equals requested_trials exactly. Provenance: final integer reduction. Planned test: semantic equality.",
+      "$ref": "#/$defs/uint64"
+    },
+    "unique_wins": {
+      "description": "Hero-only maximum-rank event count. Units: trials. Provenance: integer reduction. Planned test: outcome partition.",
+      "$ref": "#/$defs/uint64"
+    },
+    "ties": {
+      "$ref": "#/$defs/uint64",
+      "description": "Aggregate hero tie-event count. Units: trials. Provenance: integer reduction; equals sum(tie_by_other_winners). Planned test: aggregate tie-bin accounting and outcome partition."
+    },
+    "tie_by_other_winners": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "1",
+        "2",
+        "3",
+        "4",
+        "5",
+        "6"
+      ],
+      "description": "Exact hero tie-event bins by number k of equal-key opponent co-winners. Units: trials. Provenance: integer reduction. Planned test: fixed bins, partition, and zero impossible bins.",
+      "properties": {
+        "1": {
+          "description": "Count of ties with exactly 1 other winner(s); units: trials; provenance: integer reduction; planned test: tie-bin accounting.",
+          "$ref": "#/$defs/uint64"
+        },
+        "2": {
+          "description": "Count of ties with exactly 2 other winner(s); units: trials; provenance: integer reduction; planned test: tie-bin accounting.",
+          "$ref": "#/$defs/uint64"
+        },
+        "3": {
+          "description": "Count of ties with exactly 3 other winner(s); units: trials; provenance: integer reduction; planned test: tie-bin accounting.",
+          "$ref": "#/$defs/uint64"
+        },
+        "4": {
+          "description": "Count of ties with exactly 4 other winner(s); units: trials; provenance: integer reduction; planned test: tie-bin accounting.",
+          "$ref": "#/$defs/uint64"
+        },
+        "5": {
+          "description": "Count of ties with exactly 5 other winner(s); units: trials; provenance: integer reduction; planned test: tie-bin accounting.",
+          "$ref": "#/$defs/uint64"
+        },
+        "6": {
+          "description": "Count of ties with exactly 6 other winner(s); units: trials; provenance: integer reduction; planned test: tie-bin accounting.",
+          "$ref": "#/$defs/uint64"
+        }
+      }
+    },
+    "losses": {
+      "description": "Hero loss events with an opponent strictly higher. Units: trials. Provenance: integer reduction. Planned test: outcome partition.",
+      "$ref": "#/$defs/uint64"
+    },
+    "equity_share_units": {
+      "description": "Exact accumulated hero pot-share units with denominator 420 per trial. Provenance: integer reduction. Planned test: ADR 0002 tie formula.",
+      "$ref": "#/$defs/uint64"
+    },
+    "hero_category_counts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "high_card",
+        "one_pair",
+        "two_pair",
+        "three_of_a_kind",
+        "straight",
+        "flush",
+        "full_house",
+        "four_of_a_kind",
+        "straight_flush"
+      ],
+      "description": "Exactly one final seven-card hero category increment per completed trial. Units: trials. Provenance: evaluator then integer reduction. Planned test: nine-category partition and no royal_flush bucket.",
+      "properties": {
+        "high_card": {
+          "description": "Hero final high_card count; units: trials; provenance: evaluator/reduction; planned test: category partition.",
+          "$ref": "#/$defs/uint64"
+        },
+        "one_pair": {
+          "description": "Hero final one_pair count; units: trials; provenance: evaluator/reduction; planned test: category partition.",
+          "$ref": "#/$defs/uint64"
+        },
+        "two_pair": {
+          "description": "Hero final two_pair count; units: trials; provenance: evaluator/reduction; planned test: category partition.",
+          "$ref": "#/$defs/uint64"
+        },
+        "three_of_a_kind": {
+          "description": "Hero final three_of_a_kind count; units: trials; provenance: evaluator/reduction; planned test: category partition.",
+          "$ref": "#/$defs/uint64"
+        },
+        "straight": {
+          "description": "Hero final straight count; units: trials; provenance: evaluator/reduction; planned test: category partition.",
+          "$ref": "#/$defs/uint64"
+        },
+        "flush": {
+          "description": "Hero final flush count; units: trials; provenance: evaluator/reduction; planned test: category partition.",
+          "$ref": "#/$defs/uint64"
+        },
+        "full_house": {
+          "description": "Hero final full_house count; units: trials; provenance: evaluator/reduction; planned test: category partition.",
+          "$ref": "#/$defs/uint64"
+        },
+        "four_of_a_kind": {
+          "description": "Hero final four_of_a_kind count; units: trials; provenance: evaluator/reduction; planned test: category partition.",
+          "$ref": "#/$defs/uint64"
+        },
+        "straight_flush": {
+          "description": "Hero final straight_flush count; units: trials; provenance: evaluator/reduction; planned test: category partition.",
+          "$ref": "#/$defs/uint64"
+        }
+      }
+    },
+    "probabilities": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "unique_win",
+        "tie",
+        "loss",
+        "showdown_equity"
+      ],
+      "description": "Host-derived exact rational quantities, never GPU floating accumulators. Each numerator/denominator representation is frozen by normative semantic validation and is not merely an equivalent ratio. Provenance: exact counters and denominator 420. Planned test: recomputation from counters.",
+      "properties": {
+        "unique_win": {
+          "$ref": "#/$defs/probabilityFraction",
+          "description": "Exact unreduced fraction {unique_wins, completed_trials}; unitless event probability; host-derived; planned recomputation test."
+        },
+        "tie": {
+          "$ref": "#/$defs/probabilityFraction",
+          "description": "Exact unreduced fraction {ties, completed_trials}; unitless event probability; host-derived; planned recomputation test."
+        },
+        "loss": {
+          "$ref": "#/$defs/probabilityFraction",
+          "description": "Exact unreduced fraction {losses, completed_trials}; unitless event probability; host-derived; planned recomputation test."
+        },
+        "showdown_equity": {
+          "$ref": "#/$defs/probabilityFraction",
+          "description": "Exact unreduced fraction {equity_share_units, 420*completed_trials}; unitless pot-share probability; host-derived; planned recomputation test."
+        }
+      }
+    },
+    "timing": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "total_duration_ns"
+      ],
+      "description": "Measured end-to-end solve duration; timing is operational evidence, not a stable kernel-internal performance API. Uses host monotonic elapsed nanoseconds with exact portable uint64 representation.",
+      "properties": {
+        "total_duration_ns": {
+          "$ref": "#/$defs/uint64",
+          "description": "End-to-end solve elapsed nanoseconds, including validation/execution/host derivation as implemented. Units: ns. Provenance: host monotonic clock. Planned test: exact canonical uint64 string."
+        }
+      }
+    },
+    "provenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "engine_build_id",
+        "backend_qualification",
+        "device_id",
+        "kernel_id"
+      ],
+      "description": "Execution provenance. No fallback, multi-GPU, streaming, or advanced-analytics metadata exists in v1. Planned test: required identifiers and CPU null device/kernel.",
+      "properties": {
+        "engine_build_id": {
+          "$ref": "#/$defs/provenanceIdentifier128",
+          "description": "Immutable log-safe printable ASCII engine build/revision identifier. Provenance: build system. Planned test: safe printable ASCII identifier, bounds, and log-injection rejection."
+        },
+        "backend_qualification": {
+          "$ref": "#/$defs/provenanceIdentifier128",
+          "description": "Log-safe printable ASCII qualification identifier/status for actual backend. Provenance: deployment qualification record. Planned test: safe printable ASCII identifier, bounds, and log-injection rejection."
+        },
+        "device_id": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/provenanceIdentifier256"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Log-safe printable ASCII qualified CUDA device identifier, or null for cpu_reference. Provenance: runtime device discovery. Planned test: safe identifier and backend semantic coherence."
+        },
+        "kernel_id": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/provenanceIdentifier128"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Log-safe printable ASCII CUDA kernel/source build identifier, or null for cpu_reference. Provenance: CUDA build. Planned test: safe identifier and backend semantic coherence."
+        }
+      }
+    }
+  },
+  "$defs": {
+    "provenanceIdentifier128": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/+@=-]{0,127}$",
+      "description": "Log-safe printable ASCII provenance identifier of 1..128 characters; starts alphanumeric and permits only common build/device identifier punctuation. Planned test: representative IDs, bounds, and injection rejection."
+    },
+    "provenanceIdentifier256": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/+@=-]{0,255}$",
+      "description": "Log-safe printable ASCII provenance identifier of 1..256 characters; starts alphanumeric and permits only common build/device identifier punctuation. Planned test: representative IDs, bounds, and injection rejection."
+    },
+    "uint64": {
+      "type": "string",
+      "pattern": "^(?:0|[1-9][0-9]{0,18}|1[0-7][0-9]{18}|18[0-3][0-9]{17}|184[0-3][0-9]{16}|1844[0-5][0-9]{15}|18446[0-6][0-9]{14}|184467[0-3][0-9]{13}|1844674[0-3][0-9]{12}|184467440[0-6][0-9]{10}|1844674407[0-2][0-9]{9}|18446744073[0-6][0-9]{8}|1844674407370[0-8][0-9]{6}|18446744073709[0-4][0-9]{5}|184467440737095[0-4][0-9]{4}|18446744073709550[0-9]{3}|18446744073709551[0-5][0-9]{2}|1844674407370955160[0-9]{1}|1844674407370955161[0-4]|18446744073709551615)$",
+      "description": "Canonical decimal unsigned-64-bit integer string in the inclusive range 0..18446744073709551615; no leading zeroes except 0. Planned test: rejects numeric JSON, leading zeroes, and out-of-range values."
+    },
+    "trialCount": {
+      "type": "string",
+      "pattern": "^(?:[1-9][0-9]{0,15}|[1-3][0-9]{16}|4[0-2][0-9]{15}|43[0-8][0-9]{14}|439[0-1][0-9]{13}|43920[0-7][0-9]{11}|4392080[0-9]{10}|4392081[0-8][0-9]{9}|43920819[0-1][0-9]{8}|439208192[0-1][0-9]{7}|4392081922[0-2][0-9]{6}|439208192230[0-9]{5}|4392081922310[0-9]{4}|4392081922311[0-6][0-9]{3}|43920819223117[0-8][0-9]{2}|439208192231179[0-7][0-9]{1}|43920819223117980)$",
+      "description": "Canonical decimal requested-trial count in the inclusive range 1..43920819223117980; no leading zeroes. Planned test: exact request/result trial bound.",
+      "$comment": "Generated from the one authoritative numeric bound floor((2^64-1)/420); request and result trialCount patterns MUST remain byte-identical. The temporary conformance harness proves equality."
+    },
+    "probabilityFraction": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "numerator",
+        "denominator"
+      ],
+      "properties": {
+        "numerator": {
+          "$ref": "#/$defs/uint64"
+        },
+        "denominator": {
+          "allOf": [
+            {
+              "$ref": "#/$defs/uint64"
+            },
+            {
+              "not": {
+                "const": "0"
+              }
+            }
+          ]
+        }
+      },
+      "description": "Closed exact rational representation using canonical decimal uint64 strings. denominator is strictly positive. Schema permits unreduced ratios; result semantic validation freezes each named numerator and denominator representation exactly."
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "backend": {
+            "const": "cpu_reference"
+          }
+        },
+        "required": [
+          "backend"
+        ]
+      },
+      "then": {
+        "properties": {
+          "provenance": {
+            "properties": {
+              "device_id": {
+                "const": null
+              },
+              "kernel_id": {
+                "const": null
+              }
+            },
+            "required": [
+              "device_id",
+              "kernel_id"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "backend": {
+            "const": "cuda"
+          }
+        },
+        "required": [
+          "backend"
+        ]
+      },
+      "then": {
+        "properties": {
+          "provenance": {
+            "properties": {
+              "device_id": {
+                "$ref": "#/$defs/provenanceIdentifier256"
+              },
+              "kernel_id": {
+                "$ref": "#/$defs/provenanceIdentifier128"
+              }
+            },
+            "required": [
+              "device_id",
+              "kernel_id"
+            ]
+          }
+        }
+      }
+    }
+  ]
+}
