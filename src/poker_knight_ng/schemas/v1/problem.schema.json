@@ -1,0 +1,534 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://poker-knight-ng.dev/contracts/v1/problem.schema.json",
+  "title": "Poker Knight NG v1 problem",
+  "description": "Closed RFC 9457-style failure response for a rejected or failed v1 solve. Never a partial result.",
+  "$comment": "Only this object represents failure; successful counters, probabilities, timing, seed, case hash, request fields, and provenance are deliberately absent. Root oneOf branches fix type, title, status, code, detail, and retryable together per stable code, so client-visible text cannot echo raw seed, cards, hashes, paths, payloads, or backend exception text. correlation_id is server-generated only and exactly pk_ plus 32 lowercase hex digits. field_errors contain structural paths and input/unsupported validation codes only; runtime/internal failures reject field_errors.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "type",
+    "title",
+    "status",
+    "code",
+    "detail",
+    "correlation_id",
+    "retryable"
+  ],
+  "properties": {
+    "type": {
+      "type": "string"
+    },
+    "title": {
+      "type": "string"
+    },
+    "status": {
+      "type": "integer"
+    },
+    "code": {
+      "enum": [
+        "INVALID_CONTRACT_VERSION",
+        "INVALID_CARD",
+        "DUPLICATE_CARD",
+        "INVALID_BOARD_LENGTH",
+        "INVALID_OPPONENT_COUNT",
+        "INVALID_TRIAL_COUNT",
+        "INVALID_SEED",
+        "UNSUPPORTED_FIELD",
+        "UNSUPPORTED_REQUEST",
+        "UNSUPPORTED_RNG",
+        "BACKEND_UNAVAILABLE",
+        "RNG_REJECTION_EXHAUSTED",
+        "RESOURCE_EXHAUSTED",
+        "INTERNAL_ERROR"
+      ]
+    },
+    "detail": {
+      "type": "string"
+    },
+    "correlation_id": {
+      "type": "string",
+      "pattern": "^pk_[0-9a-f]{32}$",
+      "description": "Server-generated portable correlation identifier: exactly pk_ plus 32 lowercase hexadecimal digits. It MUST NOT derive from request content. Planned test: canonical format and generated-only handling."
+    },
+    "retryable": {
+      "type": "boolean"
+    },
+    "field_errors": {
+      "type": "array",
+      "maxItems": 32,
+      "description": "Optional structural input/unsupported validation errors. Never echo submitted values or messages. Runtime/internal problem branches reject this property.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "field",
+          "code"
+        ],
+        "properties": {
+          "field": {
+            "type": "string",
+            "pattern": "^[A-Za-z][A-Za-z0-9_]*(?:\\.[A-Za-z][A-Za-z0-9_]*|\\[[0-9]+\\])*$",
+            "maxLength": 128
+          },
+          "code": {
+            "enum": [
+              "DUPLICATE_CARD",
+              "INVALID_BOARD_LENGTH",
+              "INVALID_CARD",
+              "INVALID_CONTRACT_VERSION",
+              "INVALID_OPPONENT_COUNT",
+              "INVALID_SEED",
+              "INVALID_TRIAL_COUNT",
+              "UNSUPPORTED_FIELD",
+              "UNSUPPORTED_REQUEST",
+              "UNSUPPORTED_RNG"
+            ]
+          }
+        }
+      }
+    }
+  },
+  "oneOf": [
+    {
+      "properties": {
+        "type": {
+          "const": "urn:poker-knight-ng:problem:v1:invalid-contract-version"
+        },
+        "title": {
+          "const": "Invalid contract version"
+        },
+        "status": {
+          "const": 400
+        },
+        "code": {
+          "const": "INVALID_CONTRACT_VERSION"
+        },
+        "detail": {
+          "const": "The request contract version is not supported."
+        },
+        "retryable": {
+          "const": false
+        }
+      },
+      "required": [
+        "type",
+        "title",
+        "status",
+        "code",
+        "detail",
+        "retryable"
+      ]
+    },
+    {
+      "properties": {
+        "type": {
+          "const": "urn:poker-knight-ng:problem:v1:invalid-card"
+        },
+        "title": {
+          "const": "Invalid card"
+        },
+        "status": {
+          "const": 400
+        },
+        "code": {
+          "const": "INVALID_CARD"
+        },
+        "detail": {
+          "const": "The request contains an invalid card."
+        },
+        "retryable": {
+          "const": false
+        }
+      },
+      "required": [
+        "type",
+        "title",
+        "status",
+        "code",
+        "detail",
+        "retryable"
+      ]
+    },
+    {
+      "properties": {
+        "type": {
+          "const": "urn:poker-knight-ng:problem:v1:duplicate-card"
+        },
+        "title": {
+          "const": "Duplicate card"
+        },
+        "status": {
+          "const": 400
+        },
+        "code": {
+          "const": "DUPLICATE_CARD"
+        },
+        "detail": {
+          "const": "The request contains duplicate cards."
+        },
+        "retryable": {
+          "const": false
+        }
+      },
+      "required": [
+        "type",
+        "title",
+        "status",
+        "code",
+        "detail",
+        "retryable"
+      ]
+    },
+    {
+      "properties": {
+        "type": {
+          "const": "urn:poker-knight-ng:problem:v1:invalid-board-length"
+        },
+        "title": {
+          "const": "Invalid board length"
+        },
+        "status": {
+          "const": 400
+        },
+        "code": {
+          "const": "INVALID_BOARD_LENGTH"
+        },
+        "detail": {
+          "const": "The request has an invalid board length."
+        },
+        "retryable": {
+          "const": false
+        }
+      },
+      "required": [
+        "type",
+        "title",
+        "status",
+        "code",
+        "detail",
+        "retryable"
+      ]
+    },
+    {
+      "properties": {
+        "type": {
+          "const": "urn:poker-knight-ng:problem:v1:invalid-opponent-count"
+        },
+        "title": {
+          "const": "Invalid opponent count"
+        },
+        "status": {
+          "const": 400
+        },
+        "code": {
+          "const": "INVALID_OPPONENT_COUNT"
+        },
+        "detail": {
+          "const": "The request has an invalid opponent count."
+        },
+        "retryable": {
+          "const": false
+        }
+      },
+      "required": [
+        "type",
+        "title",
+        "status",
+        "code",
+        "detail",
+        "retryable"
+      ]
+    },
+    {
+      "properties": {
+        "type": {
+          "const": "urn:poker-knight-ng:problem:v1:invalid-trial-count"
+        },
+        "title": {
+          "const": "Invalid trial count"
+        },
+        "status": {
+          "const": 400
+        },
+        "code": {
+          "const": "INVALID_TRIAL_COUNT"
+        },
+        "detail": {
+          "const": "The request has an invalid trial count."
+        },
+        "retryable": {
+          "const": false
+        }
+      },
+      "required": [
+        "type",
+        "title",
+        "status",
+        "code",
+        "detail",
+        "retryable"
+      ]
+    },
+    {
+      "properties": {
+        "type": {
+          "const": "urn:poker-knight-ng:problem:v1:invalid-seed"
+        },
+        "title": {
+          "const": "Invalid seed"
+        },
+        "status": {
+          "const": 400
+        },
+        "code": {
+          "const": "INVALID_SEED"
+        },
+        "detail": {
+          "const": "The request has an invalid seed."
+        },
+        "retryable": {
+          "const": false
+        }
+      },
+      "required": [
+        "type",
+        "title",
+        "status",
+        "code",
+        "detail",
+        "retryable"
+      ]
+    },
+    {
+      "properties": {
+        "type": {
+          "const": "urn:poker-knight-ng:problem:v1:unsupported-field"
+        },
+        "title": {
+          "const": "Unsupported field"
+        },
+        "status": {
+          "const": 400
+        },
+        "code": {
+          "const": "UNSUPPORTED_FIELD"
+        },
+        "detail": {
+          "const": "The request contains an unsupported field."
+        },
+        "retryable": {
+          "const": false
+        }
+      },
+      "required": [
+        "type",
+        "title",
+        "status",
+        "code",
+        "detail",
+        "retryable"
+      ]
+    },
+    {
+      "properties": {
+        "type": {
+          "const": "urn:poker-knight-ng:problem:v1:unsupported-request"
+        },
+        "title": {
+          "const": "Unsupported request"
+        },
+        "status": {
+          "const": 400
+        },
+        "code": {
+          "const": "UNSUPPORTED_REQUEST"
+        },
+        "detail": {
+          "const": "The request is not supported."
+        },
+        "retryable": {
+          "const": false
+        }
+      },
+      "required": [
+        "type",
+        "title",
+        "status",
+        "code",
+        "detail",
+        "retryable"
+      ]
+    },
+    {
+      "properties": {
+        "type": {
+          "const": "urn:poker-knight-ng:problem:v1:unsupported-rng"
+        },
+        "title": {
+          "const": "Unsupported RNG"
+        },
+        "status": {
+          "const": 400
+        },
+        "code": {
+          "const": "UNSUPPORTED_RNG"
+        },
+        "detail": {
+          "const": "The requested RNG is not supported."
+        },
+        "retryable": {
+          "const": false
+        }
+      },
+      "required": [
+        "type",
+        "title",
+        "status",
+        "code",
+        "detail",
+        "retryable"
+      ]
+    },
+    {
+      "properties": {
+        "type": {
+          "const": "urn:poker-knight-ng:problem:v1:backend-unavailable"
+        },
+        "title": {
+          "const": "Backend unavailable"
+        },
+        "status": {
+          "const": 503
+        },
+        "code": {
+          "const": "BACKEND_UNAVAILABLE"
+        },
+        "detail": {
+          "const": "The requested backend is currently unavailable."
+        },
+        "retryable": {
+          "const": true
+        }
+      },
+      "required": [
+        "type",
+        "title",
+        "status",
+        "code",
+        "detail",
+        "retryable"
+      ],
+      "not": {
+        "required": [
+          "field_errors"
+        ]
+      }
+    },
+    {
+      "properties": {
+        "type": {
+          "const": "urn:poker-knight-ng:problem:v1:rng-rejection-exhausted"
+        },
+        "title": {
+          "const": "RNG rejection exhausted"
+        },
+        "status": {
+          "const": 422
+        },
+        "code": {
+          "const": "RNG_REJECTION_EXHAUSTED"
+        },
+        "detail": {
+          "const": "The deterministic RNG rejection limit was exhausted."
+        },
+        "retryable": {
+          "const": false
+        }
+      },
+      "required": [
+        "type",
+        "title",
+        "status",
+        "code",
+        "detail",
+        "retryable"
+      ],
+      "not": {
+        "required": [
+          "field_errors"
+        ]
+      }
+    },
+    {
+      "properties": {
+        "type": {
+          "const": "urn:poker-knight-ng:problem:v1:resource-exhausted"
+        },
+        "title": {
+          "const": "Resource exhausted"
+        },
+        "status": {
+          "const": 503
+        },
+        "code": {
+          "const": "RESOURCE_EXHAUSTED"
+        },
+        "detail": {
+          "const": "Required service resources are currently exhausted."
+        },
+        "retryable": {
+          "const": true
+        }
+      },
+      "required": [
+        "type",
+        "title",
+        "status",
+        "code",
+        "detail",
+        "retryable"
+      ],
+      "not": {
+        "required": [
+          "field_errors"
+        ]
+      }
+    },
+    {
+      "properties": {
+        "type": {
+          "const": "urn:poker-knight-ng:problem:v1:internal-error"
+        },
+        "title": {
+          "const": "Internal error"
+        },
+        "status": {
+          "const": 500
+        },
+        "code": {
+          "const": "INTERNAL_ERROR"
+        },
+        "detail": {
+          "const": "The service encountered an internal error."
+        },
+        "retryable": {
+          "const": true
+        }
+      },
+      "required": [
+        "type",
+        "title",
+        "status",
+        "code",
+        "detail",
+        "retryable"
+      ],
+      "not": {
+        "required": [
+          "field_errors"
+        ]
+      }
+    }
+  ]
+}

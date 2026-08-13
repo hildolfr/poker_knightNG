@@ -1,0 +1,8 @@
+include README.md
+include LICENSE
+include pyproject.toml
+recursive-include contracts/v1 *.json
+recursive-include src/poker_knight_ng *.py *.md *.json *.cu *.cuh
+prune tests
+prune benchmarks
+global-exclude __pycache__ *.py[cod]

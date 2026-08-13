@@ -1,57 +1,14 @@
+"""Poker Knight NG contract-only public boundary.
+
+Importing this module deliberately does not import CuPy or compile CUDA sources.
 """
-poker_knight_ng - GPU-accelerated Texas Hold'em poker solver.
+from importlib.metadata import PackageNotFoundError, version
 
-A high-performance drop-in replacement for the original Poker Knight,
-using CuPy and a monolithic CUDA kernel architecture for maximum speed.
-"""
+try:
+    __version__ = version("poker-knight-ng")
+except PackageNotFoundError:  # source-tree import before installation
+    __version__ = "0+unknown"
 
-__version__ = "0.1.0"
-__author__ = "Hildolfr"
+from .contract import (ContractProblem, EquityRequest, EquityResult, canonical_case_bytes, canonical_case_hash)
 
-# Main API export
-from poker_knight_ng.api import (
-    solve_poker_hand,
-    enable_gpu_keepalive,
-    disable_gpu_keepalive,
-    is_gpu_keepalive_enabled,
-    get_gpu_keepalive_config,
-)
-
-# Server API exports
-from poker_knight_ng.api_server import (
-    PokerSolverServer,
-    PokerSolverPool,
-    create_poker_server,
-)
-
-# Card utilities
-from poker_knight_ng.card_utils import (
-    card_to_int,
-    int_to_card,
-    parse_hand,
-    hand_to_string,
-    get_rank,
-    get_suit,
-    make_card,
-)
-
-__all__ = [
-    # Main API
-    "solve_poker_hand",
-    "enable_gpu_keepalive",
-    "disable_gpu_keepalive", 
-    "is_gpu_keepalive_enabled",
-    "get_gpu_keepalive_config",
-    # Server API
-    "PokerSolverServer",
-    "PokerSolverPool",
-    "create_poker_server",
-    # Card utilities
-    "card_to_int",
-    "int_to_card", 
-    "parse_hand",
-    "hand_to_string",
-    "get_rank",
-    "get_suit",
-    "make_card",
-]
+__all__ = ["ContractProblem", "EquityRequest", "EquityResult", "canonical_case_bytes", "canonical_case_hash", "__version__"]
