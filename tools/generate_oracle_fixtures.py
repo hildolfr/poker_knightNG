@@ -46,6 +46,9 @@ AUTHORITY_NAMES = (
     "src/poker_knight_ng/reference/cards.py",
     "src/poker_knight_ng/reference/evaluator.py",
     "src/poker_knight_ng/reference/enumerate.py",
+    "tools/qualify_seven_card_corpus.py",
+    "tools/seven_card_category_counter.c",
+    "validation/holdem/v1/seven_card_release_qualification.json",
 )
 MANIFEST_NAMES = CORPUS_NAMES + AUTHORITY_NAMES
 
@@ -349,25 +352,45 @@ def build(root: Path, case_filter: set[str] | None = None) -> dict[str, bytes]:
     }
 
 
-def manifest(root: Path, outputs: dict[str, bytes]) -> bytes:
+def manifest(
+    root: Path,
+    outputs: dict[str, bytes],
+    authority_outputs: dict[str, bytes] | None = None,
+) -> bytes:
+    prospective_authority = authority_outputs or {}
     lines = [
         f"{hashlib.sha256(outputs[name]).hexdigest()}  {name}\n"
         for name in CORPUS_NAMES
     ]
     lines.extend(
-        f"{hashlib.sha256((root / name).read_bytes()).hexdigest()}  {name}\n"
+        f"{hashlib.sha256(prospective_authority[name] if name in prospective_authority else (root / name).read_bytes()).hexdigest()}  {name}\n"
         for name in AUTHORITY_NAMES
     )
     return "".join(lines).encode("ascii")
 
 
-def _stage_bytes(directory: Path, data: bytes) -> Path:
-    fd, raw_path = tempfile.mkstemp(
-        prefix=".oracle-fixture-", suffix=".tmp", dir=directory
-    )
+def _stage_bytes(directory: Path, data: bytes, suffix: str = ".tmp", mode: int = 0o644) -> Path:
+    """Stage deterministic artifact bytes with an explicit destination mode."""
+    fd, raw_path = tempfile.mkstemp(prefix=".oracle-fixture-", suffix=suffix, dir=directory)
     path = Path(raw_path)
     try:
-        with os.fdopen(fd, "wb") as handle:
+        os.fchmod(fd, mode)
+    except Exception:
+        try:
+            os.close(fd)
+        finally:
+            path.unlink(missing_ok=True)
+        raise
+    try:
+        handle = os.fdopen(fd, "wb")
+    except Exception:
+        try:
+            os.close(fd)
+        finally:
+            path.unlink(missing_ok=True)
+        raise
+    try:
+        with handle:
             handle.write(data)
             handle.flush()
             os.fsync(handle.fileno())
@@ -377,43 +400,92 @@ def _stage_bytes(directory: Path, data: bytes) -> Path:
     return path
 
 
-def atomic_write(destination: Path, outputs: dict[str, bytes]) -> None:
-    """Publish with rollback for caught failures; not cross-file crash atomic."""
+def _write_recovery_bytes(destination: Path, backup: Path, mode: int) -> None:
+    """Last-resort restoration when an atomic replace is unavailable."""
+    with destination.open("wb") as handle:
+        os.fchmod(handle.fileno(), mode)
+        handle.write(backup.read_bytes())
+        handle.flush()
+        os.fsync(handle.fileno())
+
+
+def _cleanup(paths: list[Path]) -> list[tuple[Path, str]]:
+    failures: list[tuple[Path, str]] = []
+    for path in paths:
+        try:
+            path.unlink(missing_ok=True)
+        except Exception as error:
+            failures.append((path, type(error).__name__))
+    return failures
+
+
+def atomic_write_paths(paths: dict[Path, bytes]) -> None:
+    """Publish ordered files with recoverable rollback, not crash-wide atomicity."""
     staged: dict[Path, Path] = {}
-    originals: dict[Path, bytes | None] = {}
+    backups: dict[Path, Path | None] = {}
+    modes: dict[Path, int] = {}
     replaced: list[Path] = []
+    ordered = tuple(sorted(paths, key=lambda path: str(path)))
     try:
-        destination.mkdir(parents=True, exist_ok=True)
-        (destination / "manifests").mkdir(exist_ok=True)
-        paths = {
-            (
-                destination / name
-                if name in CORPUS_NAMES
-                else destination / "manifests" / name
-            ): data
-            for name, data in outputs.items()
-        }
-        for path, data in paths.items():
-            originals[path] = path.read_bytes() if path.exists() else None
-            staged[path] = _stage_bytes(path.parent, data)
-        for path in paths:
+        for path in ordered:
+            data = paths[path]
+            path.parent.mkdir(parents=True, exist_ok=True)
+            modes[path] = os.stat(path).st_mode & 0o777 if path.exists() else 0o644
+            backups[path] = _stage_bytes(path.parent, path.read_bytes(), ".bak", modes[path]) if path.exists() else None
+            staged[path] = _stage_bytes(path.parent, data, mode=modes[path])
+        for path in ordered:
             os.replace(staged[path], path)
             replaced.append(path)
             del staged[path]
-    except Exception:
+    except Exception as publication_error:
+        incomplete: list[str] = []
+        retained: set[Path] = set()
         for path in reversed(replaced):
-            original = originals[path]
-            try:
-                if original is None:
+            backup = backups[path]
+            if backup is None:
+                try:
                     path.unlink(missing_ok=True)
+                except Exception as error:
+                    incomplete.append(f"remove {path}: {type(error).__name__}")
+                continue
+            try:
+                os.replace(backup, path)
+                backups[path] = None
+            except Exception as restore_error:
+                try:
+                    _write_recovery_bytes(path, backup, modes[path])
+                except Exception as fallback_error:
+                    retained.add(backup)
+                    incomplete.append(
+                        f"restore {path} from {backup}: {type(restore_error).__name__}/{type(fallback_error).__name__}"
+                    )
                 else:
-                    os.replace(_stage_bytes(path.parent, original), path)
-            except Exception:
-                pass
+                    cleanup_failures = _cleanup([backup])
+                    if cleanup_failures:
+                        retained.update(failed_path for failed_path, _ in cleanup_failures)
+                        incomplete.extend(f"cleanup {failed_path}: {kind}" for failed_path, kind in cleanup_failures)
+                    else:
+                        backups[path] = None
+        cleanup_failures = _cleanup(
+            list(staged.values()) + [backup for backup in backups.values() if backup is not None and backup.exists() and backup not in retained]
+        )
+        incomplete.extend(f"cleanup {failed_path}: {kind}" for failed_path, kind in cleanup_failures)
+        if incomplete:
+            detail = "; ".join(incomplete[:8])
+            raise QualificationError(f"fixture publication rollback incomplete: {detail}") from publication_error
         raise QualificationError("fixture publication failed") from None
-    finally:
-        for path in staged.values():
-            path.unlink(missing_ok=True)
+    cleanup_failures = _cleanup([backup for backup in backups.values() if backup is not None])
+    if cleanup_failures:
+        detail = "; ".join(f"{path}: {kind}" for path, kind in cleanup_failures[:8])
+        raise QualificationError(f"fixture publication cleanup failed: {detail}")
+
+
+def atomic_write(destination: Path, outputs: dict[str, bytes]) -> None:
+    paths = {
+        destination / name if name in CORPUS_NAMES else destination / "manifests" / name: data
+        for name, data in outputs.items()
+    }
+    atomic_write_paths(paths)
 
 
 def release(

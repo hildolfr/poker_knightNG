@@ -2,9 +2,11 @@
 from __future__ import annotations
 
 import hashlib
+import importlib.util
 import json
 import os
 import random
+import subprocess
 import sys
 import shutil
 from pathlib import Path
@@ -25,7 +27,9 @@ AUTHORITY_NAMES = (
     "contracts/v1/equity-request.schema.json", "contracts/v1/equity-result.schema.json",
     "contracts/v1/problem.schema.json", "src/poker_knight_ng/reference/cards.py",
     "src/poker_knight_ng/reference/evaluator.py", "src/poker_knight_ng/reference/enumerate.py",
-)
+ "tools/qualify_seven_card_corpus.py", "tools/seven_card_category_counter.c",
+ "validation/holdem/v1/seven_card_release_qualification.json",
+ )
 EXPECTED_NAMES = set(CORPUS_NAMES + AUTHORITY_NAMES)
 CATEGORY_KEYS = set(CATEGORY_NAMES)
 EXACT_KEYS = {"format_version", "contract_version", "derivation", "id", "operation", "hero_cards", "board_cards", "opponent_holes", "expected"}
@@ -92,6 +96,206 @@ def test_score_seven_shortcut_matches_transparent_best_five_for_ten_thousand_uni
         assert _score_seven_ids(ids) == best_five(cards).score.key
 
 
+def _qualifier():
+    spec = importlib.util.spec_from_file_location("seven_card_qualifier", ROOT / "tools" / "qualify_seven_card_corpus.py")
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+def _copied_qualifier(tmp_path):
+    root = _copied_root(tmp_path)
+    qualifier = _qualifier()
+    qualifier.ROOT = root
+    qualifier.CORPUS = root / "validation/holdem/v1"
+    qualifier.EVIDENCE = qualifier.CORPUS / "seven_card_release_qualification.json"
+    return root, qualifier
+
+
+def test_seven_card_sample_is_canonical_unique_and_broadly_spans_deck():
+    qualifier = _qualifier()
+    hands = qualifier._sample_ids()
+    assert len(hands) == 10_000 and hands == tuple(sorted(hands)) and len(set(hands)) == len(hands)
+    explicit_categories = {best_five(tuple(CARD_DECK[i].token for i in hand)).score.key[0] for hand in hands}
+    assert explicit_categories == set(range(9))
+    wheel = tuple(sorted(_card_id({card.token: card for card in CARD_DECK}[token]) for token in "As 2s 3s 4s 5s Kd Qh".split()))
+    assert wheel in hands
+    ids = [card_id for hand in hands for card_id in hand]
+    assert min(ids) == 0 and max(ids) == 51
+    assert all(sum(card_id // 13 == suit for card_id in ids) > 10_000 for suit in range(4))
+    assert all(sum(card_id % 13 == rank for card_id in ids) > 4_000 for rank in range(13))
+
+
+def test_c_category_accelerator_sample_protocol_matches_canonical_and_wheel_hands(tmp_path):
+    qualifier = _qualifier()
+    executable = qualifier._compile_counter(tmp_path / "counter")
+    hands = (
+        (0, 1, 2, 3, 4, 18, 31),  # wheel straight flush
+        tuple(sorted(_card_id({card.token: card for card in CARD_DECK}[token]) for token in "As 2h 3d 4c 5s Kd Qh".split())),
+        tuple(sorted(_card_id({card.token: card for card in CARD_DECK}[token]) for token in "As Ah Ad Ac Kd Qh Js".split())),
+    )
+    actual = qualifier._accelerated_categories(hands, executable)
+    expected = tuple(best_five(tuple(CARD_DECK[card_id].token for card_id in hand)).score.key[0] for hand in hands)
+    assert actual == expected == (8, 4, 7)
+    for payload in ("0 1 2 3 4 5\n", "0 1 2 3 4 5 52\n", "0 1 2 3 4 5 5\n", "0 1 2 3 4 5 nope\n", "0 1 2 3 4 5 6 extra\n", "999999999999999999999999999999999999999999999999 1 2 3 4 5 6\n", "-999999999999999999999999999999999999999999999999 1 2 3 4 5 6\n"):
+        result = subprocess.run([str(executable), "--sample"], input=payload, text=True, capture_output=True)
+        assert result.returncode != 0
+
+
+def test_c_category_accelerator_rejects_invalid_python_hands_and_short_output(tmp_path, monkeypatch):
+    qualifier = _qualifier()
+    executable = qualifier._compile_counter(tmp_path / "counter")
+    with pytest.raises(ValueError, match="seven distinct canonical"):
+        qualifier._accelerated_categories(((0, 1, 2, 3, 4, 5, 5),), executable)
+
+    class ShortResult:
+        returncode = 0
+        stdout = "4\n"
+        stderr = ""
+    monkeypatch.setattr(qualifier.subprocess, "run", lambda *args, **kwargs: ShortResult())
+    with pytest.raises(RuntimeError, match="output cardinality"):
+        qualifier._accelerated_categories(((0, 1, 2, 3, 4, 5, 6), (7, 8, 9, 10, 11, 12, 13)), executable)
+
+
+def test_c_differential_uses_all_ten_thousand_hands_and_rejects_category_mismatch(monkeypatch):
+    qualifier = _qualifier()
+    seen = []
+    def categories(hands, executable):
+        seen.append(len(hands))
+        return tuple(best_five(tuple(CARD_DECK[card_id].token for card_id in hand)).score.key[0] for hand in hands)
+    monkeypatch.setattr(qualifier, "_accelerated_categories", categories)
+    qualifier.differential(Path("counter"))
+    assert seen == [10_000]
+    monkeypatch.setattr(qualifier, "_accelerated_categories", lambda hands, executable: (9,) * len(hands))
+    with pytest.raises(RuntimeError, match="C category accelerator differs"):
+        qualifier.differential(Path("counter"))
+
+
+def test_seven_card_evidence_verify_rejects_resigned_malformed_review_record(tmp_path):
+    generator = _generator(); root, qualifier = _copied_qualifier(tmp_path)
+    document = json.loads(qualifier.EVIDENCE.read_text())
+    document.update(format_version="2", qualification={}, independent_engine={}, total_matches_target=1, counts_match_canonical="true", implementation_sha256={"tools/qualify_seven_card_corpus.py": ""}, extra="forged")
+    qualifier.EVIDENCE.write_text(json.dumps(document, separators=(",", ":")) + "\n")
+    _resign(generator, root)
+    with pytest.raises(RuntimeError, match="invalid seven-card qualification evidence"):
+        qualifier.verify()
+
+
+@pytest.mark.parametrize("mutate", [
+    lambda raw: raw.replace(b'"format_version":"1"', b'"format_version":"2"', 1),
+    lambda raw: raw.replace(b'"format_version":"1"', b'"format_version":"1","format_version":"1"', 1),
+    lambda raw: raw.replace(b'"total_matches_target":true', b'"total_matches_target":1'),
+    lambda raw: raw.replace(b'"counts_match_canonical":true', b'"counts_match_canonical":"true"'),
+    lambda raw: raw.replace(b'"optimized_scorer_differential":{"authority":"transparent-five-card-subset-evaluator","scope":', b'"optimized_scorer_differential":{"authority":"transparent-five-card-subset-evaluator","equal":1,"scope":', 1).replace(b',"equal":true}', b'}', 1),
+    lambda raw: raw.replace(b'"independent_engine":{"name":"treys","version":"0.1.8","scope":', b'"independent_engine":{"name":"treys","version":"0.1.8","equal":1,"scope":', 1).replace(b',"equal":true}', b'}', 1),
+    lambda raw: raw.replace(b'"optimized_scorer_differential":{"authority":"transparent-five-card-subset-evaluator","scope":', b'"optimized_scorer_differential":{"authority":"transparent-five-card-subset-evaluator","equal":"true","scope":', 1).replace(b',"equal":true}', b'}', 1),
+    lambda raw: raw.replace(b'"independent_engine":{"name":"treys","version":"0.1.8","scope":', b'"independent_engine":{"name":"treys","version":"0.1.8","equal":null,"scope":', 1).replace(b',"equal":true}', b'}', 1),
+    lambda raw: raw.replace(b'"optimized_scorer_differential":{"authority":"transparent-five-card-subset-evaluator","scope":', b'"optimized_scorer_differential":{"authority":"transparent-five-card-subset-evaluator","equal":false,"scope":', 1).replace(b',"equal":true}', b'}', 1),
+    lambda raw: raw.replace(b'"independent_engine":{"name":"treys","version":"0.1.8","scope":', b'"independent_engine":{"name":"treys","version":"0.1.8","equal":false,"scope":', 1).replace(b',"equal":true}', b'}', 1),
+    lambda raw: raw.replace(b'"target_cardinality":"133784560"', b'"target_cardinality":133784560'),
+    lambda raw: raw.replace(b'"high_card":"23294460"', b'"high_card":"023294460"'),
+    lambda raw: raw.replace(b'"elapsed_seconds":"', b'"elapsed_seconds":"-'),
+    lambda raw: raw.replace(b'"elapsed_seconds":"', b'"unexpected":true,"elapsed_seconds":"'),
+    lambda raw: raw.replace(b'"tools/qualify_seven_card_corpus.py":"', b'"unknown/path.py":"'),
+    lambda raw: b'\xef\xbb\xbf' + raw,
+    lambda raw: raw.replace(b'\n', b'\r\n'),
+    lambda raw: raw.rstrip(b'\n'),
+    lambda raw: raw + b'{}\n',
+    lambda raw: raw.replace(b'"elapsed_seconds":"', b'"elapsed_seconds":NaN'),
+])
+def test_seven_card_evidence_verify_rejects_resigned_noncanonical_mutations(tmp_path, mutate):
+    generator = _generator(); root, qualifier = _copied_qualifier(tmp_path)
+    qualifier.EVIDENCE.write_bytes(mutate(qualifier.EVIDENCE.read_bytes()))
+    _resign(generator, root)
+    with pytest.raises(RuntimeError):
+        qualifier.verify()
+
+
+def _seam_release(qualifier, monkeypatch):
+    monkeypatch.setenv("RUN_SEVEN_CARD_RELEASE_QUALIFICATION", "1")
+    monkeypatch.setattr(qualifier, "_compile_counter", lambda executable: executable)
+    monkeypatch.setattr(qualifier, "differential", lambda executable: None)
+    class Result:
+        stdout = "133784560 23294460 58627800 31433400 6461620 6180020 4047644 3473184 224848 41584\n"
+    monkeypatch.setattr(qualifier.subprocess, "run", lambda *args, **kwargs: Result())
+
+
+def test_seam_release_publishes_evidence_and_manifest_together(tmp_path, monkeypatch):
+    generator = _generator(); root, qualifier = _copied_qualifier(tmp_path)
+    _seam_release(qualifier, monkeypatch)
+    qualifier.release()
+    qualifier.verify()
+    generator.verify(root)
+    manifest = (qualifier.CORPUS / "manifests/sha256sums.txt").read_bytes()
+    assert hashlib.sha256(qualifier.EVIDENCE.read_bytes()).hexdigest().encode() in manifest
+    assert not list(qualifier.CORPUS.rglob(".oracle-fixture-*"))
+
+
+def test_seam_release_reuses_valid_committed_elapsed_without_rewriting_evidence_or_manifest(tmp_path, monkeypatch):
+    root, qualifier = _copied_qualifier(tmp_path)
+    _seam_release(qualifier, monkeypatch)
+    qualifier.EVIDENCE.unlink()
+    monkeypatch.setattr(qualifier.time, "monotonic", iter((100.0, 101.25, 200.0, 203.5)).__next__)
+    first = qualifier.release()
+    evidence = qualifier.EVIDENCE.read_bytes(); manifest = (qualifier.CORPUS / "manifests/sha256sums.txt").read_bytes()
+    second = qualifier.release()
+    assert first["elapsed_seconds"] == "1.250000"
+    assert second["elapsed_seconds"] == "1.250000"
+    assert qualifier.EVIDENCE.read_bytes() == evidence
+    assert (qualifier.CORPUS / "manifests/sha256sums.txt").read_bytes() == manifest
+    assert second["measured_elapsed_seconds"] == "3.500000"
+
+
+def test_seam_release_records_new_elapsed_when_qualification_state_changes(tmp_path, monkeypatch):
+    root, qualifier = _copied_qualifier(tmp_path)
+    _seam_release(qualifier, monkeypatch)
+    monkeypatch.setattr(qualifier.time, "monotonic", iter((10.0, 11.0, 20.0, 22.0)).__next__)
+    qualifier.release()
+    before = qualifier.EVIDENCE.read_bytes()
+    (root / "tools/seven_card_category_counter.c").write_text("changed governing implementation\n")
+    second = qualifier.release()
+    assert second["elapsed_seconds"] == "2.000000"
+    assert qualifier.EVIDENCE.read_bytes() != before
+
+
+def test_seam_release_records_new_elapsed_when_manifest_bound_authority_changes(tmp_path, monkeypatch):
+    root, qualifier = _copied_qualifier(tmp_path)
+    _seam_release(qualifier, monkeypatch)
+    qualifier.EVIDENCE.unlink()
+    monkeypatch.setattr(qualifier.time, "monotonic", iter((10.0, 11.0, 20.0, 22.0)).__next__)
+    qualifier.release()
+    before = qualifier.EVIDENCE.read_bytes()
+    generator_path = root / "tools/generate_oracle_fixtures.py"
+    generator_path.write_text(generator_path.read_text() + "\n# changed manifest-bound authority\n")
+    second = qualifier.release()
+    assert second["elapsed_seconds"] == "2.000000"
+    assert qualifier.EVIDENCE.read_bytes() != before
+
+
+@pytest.mark.parametrize("boundary", (1, 2))
+def test_seam_release_rolls_back_evidence_and_manifest_at_each_publication_boundary(tmp_path, monkeypatch, boundary):
+    root, qualifier = _copied_qualifier(tmp_path)
+    _seam_release(qualifier, monkeypatch)
+    destinations = (qualifier.EVIDENCE, qualifier.CORPUS / "manifests/sha256sums.txt")
+    before = {path: path.read_bytes() for path in destinations}
+    real_replace = qualifier._publication_module().os.replace
+    publications = 0
+    def fail_boundary(source, destination):
+        nonlocal publications
+        if Path(source).name.startswith(".oracle-fixture-"):
+            publications += 1
+            if publications == boundary:
+                raise OSError("injected publication failure")
+        return real_replace(source, destination)
+    monkeypatch.setattr(qualifier._publication_module().os, "replace", fail_boundary)
+    with pytest.raises(RuntimeError, match="fixture publication failed"):
+        qualifier.release()
+    assert {path: path.read_bytes() for path in destinations} == before
+    assert not list(qualifier.CORPUS.rglob(".oracle-fixture-*"))
+
+
 def test_exact_and_tie_rows_are_closed_canonical_and_conserved():
     exact = records("exact_holdem_cases.jsonl")
     assert [row["id"] for row in exact] == ["unknown-river", "unknown-turn", "unknown-flop", "fixed-holes-turn", "fixed-holes-preflop-aa-vs-kk", "terminal-loss"]
@@ -120,8 +324,37 @@ def test_exact_and_tie_rows_are_closed_canonical_and_conserved():
 def test_readme_copies_and_qualification_truth_are_consistent():
     assert (ROOT / "README.md").read_bytes() == (ROOT / "src/poker_knight_ng/README.md").read_bytes()
     text = (CORPUS / "QUALIFICATION.md").read_text()
-    assert "RUN_ORACLE_RELEASE_QUALIFICATION=1" in text
-    assert "133,784,560" in text and "outstanding" in text.lower()
+    assert "RUN_SEVEN_CARD_RELEASE_QUALIFICATION=1" in text
+    assert "133,784,560" in text and "outstanding" not in text.lower()
+
+
+def test_committed_seven_card_release_evidence_is_hash_bound_and_exact():
+    generator = _generator()
+    evidence = CORPUS / "seven_card_release_qualification.json"
+    assert "validation/holdem/v1/seven_card_release_qualification.json" in generator.MANIFEST_NAMES
+    document = json.loads(evidence.read_text())
+    assert document["format_version"] == "1"
+    assert document["qualification"] == "phase-2-seven-card-release-candidate"
+    assert document["command"] == "RUN_SEVEN_CARD_RELEASE_QUALIFICATION=1 uv run python tools/qualify_seven_card_corpus.py --release"
+    assert document["target_cardinality"] == "133784560"
+    assert document["category_counts"] == {
+        "high_card": "23294460", "one_pair": "58627800", "two_pair": "31433400",
+        "three_of_a_kind": "6461620", "straight": "6180020", "flush": "4047644",
+        "full_house": "3473184", "four_of_a_kind": "224848", "straight_flush": "41584",
+    }
+    assert document["total_matches_target"] is True and document["counts_match_canonical"] is True
+    assert document["optimized_scorer_differential"]["equal"] is True
+    assert document["independent_engine"] == {
+        "name": "treys", "version": "0.1.8",
+        "scope": "10000 deterministic unique seven-card hands including all categories and wheel; SHA-256 counter-derived candidates with duplicate rejection; direct C category-counter differential; C category counter and transparent evaluator agree",
+        "equal": True,
+    }
+    assert set(document["implementation_sha256"]) == {
+        "tools/qualify_seven_card_corpus.py", "tools/seven_card_category_counter.c",
+        "src/poker_knight_ng/reference/evaluator.py",
+    }
+    assert all(len(value) == 64 for value in document["implementation_sha256"].values())
+    assert isinstance(document["elapsed_seconds"], str) and document["elapsed_seconds"].count(".") == 1
 
 
 def test_generator_verify_is_fast_and_nonmutating(tmp_path):
@@ -293,6 +526,166 @@ def test_atomic_write_rolls_back_all_destinations_after_publication_failure(tmp_
     with pytest.raises(generator.QualificationError, match="fixture publication failed"):
         generator.atomic_write(out, outputs)
     assert {name: (out / name if name in CORPUS_NAMES else out / "manifests" / name).read_bytes() for name in original} == original
+
+
+@pytest.mark.parametrize("mode", (0o644, 0o600, 0o755))
+def test_atomic_write_preserves_existing_destination_mode_on_success(tmp_path, mode):
+    generator = _generator()
+    destination = tmp_path / "artifact"
+    destination.write_bytes(b"old"); os.chmod(destination, mode)
+    generator.atomic_write_paths({destination: b"new"})
+    assert destination.read_bytes() == b"new"
+    assert os.stat(destination).st_mode & 0o777 == mode
+
+
+def test_stage_bytes_closes_descriptor_and_removes_stage_when_fchmod_fails(tmp_path, monkeypatch):
+    generator = _generator()
+    real_close = generator.os.close
+    closed: list[int] = []
+
+    def fail_fchmod(_fd, _mode):
+        raise OSError("injected fchmod failure")
+
+    def track_close(fd):
+        closed.append(fd)
+        return real_close(fd)
+
+    monkeypatch.setattr(generator.os, "fchmod", fail_fchmod)
+    monkeypatch.setattr(generator.os, "close", track_close)
+    with pytest.raises(OSError, match="injected fchmod failure"):
+        generator._stage_bytes(tmp_path, b"payload")
+    assert len(closed) == 1
+    assert not list(tmp_path.glob(".oracle-fixture-*"))
+
+
+def test_atomic_write_preserves_modes_during_fallback_rollback(tmp_path, monkeypatch):
+    generator = _generator()
+    first, second = tmp_path / "first", tmp_path / "second"
+    first.write_bytes(b"old first"); second.write_bytes(b"old second")
+    os.chmod(first, 0o644); os.chmod(second, 0o600)
+    real_replace = generator.os.replace; publications = 0
+    def fail_publish_and_atomic_restore(source, destination):
+        nonlocal publications
+        if Path(source).name.endswith(".tmp"):
+            publications += 1
+            if publications == 2: raise OSError("publish")
+        elif publications >= 2: raise OSError("restore")
+        return real_replace(source, destination)
+    monkeypatch.setattr(generator.os, "replace", fail_publish_and_atomic_restore)
+    with pytest.raises(generator.QualificationError):
+        generator.atomic_write_paths({first: b"new first", second: b"new second"})
+    assert first.read_bytes() == b"old first" and second.read_bytes() == b"old second"
+    assert os.stat(first).st_mode & 0o777 == 0o644
+    assert os.stat(second).st_mode & 0o777 == 0o600
+
+
+def test_seam_release_preserves_evidence_and_manifest_modes(tmp_path, monkeypatch):
+    root, qualifier = _copied_qualifier(tmp_path)
+    _seam_release(qualifier, monkeypatch)
+    manifest = qualifier.CORPUS / "manifests/sha256sums.txt"
+    os.chmod(qualifier.EVIDENCE, 0o600); os.chmod(manifest, 0o644)
+    qualifier.release()
+    assert os.stat(qualifier.EVIDENCE).st_mode & 0o777 == 0o600
+    assert os.stat(manifest).st_mode & 0o777 == 0o644
+
+
+def test_atomic_write_falls_back_to_durable_backup_when_atomic_restore_fails(tmp_path, monkeypatch):
+    generator = _generator()
+    first, second = tmp_path / "first.jsonl", tmp_path / "second.jsonl"
+    first.write_bytes(b"first original"); second.write_bytes(b"second original")
+    real_replace = generator.os.replace
+    publications = 0
+
+    def fail_second_publish_and_all_restores(source, destination):
+        nonlocal publications
+        if Path(source).name.endswith(".tmp"):
+            publications += 1
+            if publications >= 2:
+                raise OSError("injected publication failure")
+        elif publications >= 2:
+            raise OSError("injected atomic restore failure")
+        return real_replace(source, destination)
+
+    monkeypatch.setattr(generator.os, "replace", fail_second_publish_and_all_restores)
+    with pytest.raises(generator.QualificationError, match=r"^fixture publication failed$"):
+        generator.atomic_write_paths({first: b"first new", second: b"second new"})
+    assert first.read_bytes() == b"first original"
+    assert second.read_bytes() == b"second original"
+    assert not list(tmp_path.glob(".oracle-fixture-*"))
+
+
+def test_atomic_write_reports_incomplete_rollback_and_retains_backup_when_fallback_fails(tmp_path, monkeypatch):
+    generator = _generator()
+    first, second = tmp_path / "first.jsonl", tmp_path / "second.jsonl"
+    first.write_bytes(b"first original"); second.write_bytes(b"second original")
+    real_replace = generator.os.replace
+    publications = 0
+
+    def fail_second_publish_and_all_restores(source, destination):
+        nonlocal publications
+        if Path(source).name.endswith(".tmp"):
+            publications += 1
+            if publications >= 2:
+                raise OSError("injected publication failure")
+        elif publications >= 2:
+            raise OSError("injected atomic restore failure")
+        return real_replace(source, destination)
+
+    monkeypatch.setattr(generator.os, "replace", fail_second_publish_and_all_restores)
+    real_stage = generator._stage_bytes
+
+    def fail_fallback_write(directory, data):
+        if data == b"first original" and publications >= 2:
+            raise OSError("injected fallback write failure")
+        return real_stage(directory, data)
+
+    # The implementation's direct fallback is deliberately a narrow seam.
+    monkeypatch.setattr(generator, "_write_recovery_bytes", fail_fallback_write, raising=False)
+    with pytest.raises(generator.QualificationError, match="rollback incomplete") as caught:
+        generator.atomic_write_paths({first: b"first new", second: b"second new"})
+    assert str(first) in str(caught.value)
+    assert first.read_bytes() == b"first new"
+    backups = list(tmp_path.glob(".oracle-fixture-*.bak"))
+    assert len(backups) == 1 and backups[0].read_bytes() == b"first original"
+    assert not list(tmp_path.glob(".oracle-fixture-*.tmp"))
+
+
+def test_atomic_write_surfaces_backup_cleanup_failure_without_destroying_recovery_data(tmp_path, monkeypatch):
+    generator = _generator()
+    first, second = tmp_path / "first.jsonl", tmp_path / "second.jsonl"
+    first.write_bytes(b"first original"); second.write_bytes(b"second original")
+    real_replace = generator.os.replace
+    publications = 0
+
+    def fail_second_publish_and_restore(source, destination):
+        nonlocal publications
+        if Path(source).name.endswith(".tmp"):
+            publications += 1
+            if publications >= 2:
+                raise OSError("injected publication failure")
+        elif publications >= 2:
+            raise OSError("injected atomic restore failure")
+        return real_replace(source, destination)
+
+    monkeypatch.setattr(generator.os, "replace", fail_second_publish_and_restore)
+    real_cleanup = generator._cleanup
+
+    retained_backup = None
+
+    def fail_backup_cleanup(paths):
+        nonlocal retained_backup
+        paths = list(paths)
+        if retained_backup is None:
+            retained_backup = next(path for path in paths if path.name.endswith(".bak"))
+            return [(retained_backup, "OSError")]
+        return real_cleanup(paths)
+
+    monkeypatch.setattr(generator, "_cleanup", fail_backup_cleanup)
+    with pytest.raises(generator.QualificationError, match="rollback incomplete"):
+        generator.atomic_write_paths({first: b"first new", second: b"second new"})
+    backups = list(tmp_path.glob(".oracle-fixture-*.bak"))
+    assert any(backup.read_bytes() == b"first original" for backup in backups)
+    assert not list(tmp_path.glob(".oracle-fixture-*.tmp"))
 
 
 def test_atomic_write_removes_initially_absent_destinations_after_failure(tmp_path, monkeypatch):
