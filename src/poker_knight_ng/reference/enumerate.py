@@ -5,7 +5,7 @@ from itertools import combinations, islice
 from typing import Iterable, TypeVar
 
 from .cards import CARD_DECK, Card, _card_id, parse_cards
-from .evaluator import best_five
+from .evaluator import HandScore, best_five
 
 _UNITS = 420
 _MAX = (1 << 64) - 1
@@ -135,6 +135,56 @@ def _remaining(used: tuple[Card, ...]) -> tuple[Card, ...]:
     return tuple(card for card in CARD_DECK if _card_id(card) not in ids)
 
 
+def _straight_high_from_ranks(ranks: tuple[int, ...]) -> int:
+    """Return the highest available five-rank straight, or zero when absent."""
+    present = set(ranks)
+    for high in range(14, 5, -1):
+        if all(rank in present for rank in range(high - 4, high + 1)):
+            return high
+    return 5 if {14, 2, 3, 4, 5} <= present else 0
+
+
+def _score_seven_ids(ids: tuple[int, ...]) -> tuple[int, int, int, int, int, int]:
+    """Score a seven-card set without materializing its 21 five-card subsets.
+
+    This exact shortcut makes exhaustive preflop fixed-hole enumeration usable
+    while preserving the semantics of the transparent subset evaluator.
+    """
+    ranks = tuple(card_id % 13 + 2 for card_id in ids)
+    suits = tuple(card_id // 13 for card_id in ids)
+    by_rank = {rank: ranks.count(rank) for rank in set(ranks)}
+    suit_ranks = tuple(tuple(rank for rank, suit in zip(ranks, suits) if suit == target) for target in range(4))
+    straight_flush = max((_straight_high_from_ranks(values) for values in suit_ranks if len(values) >= 5), default=0)
+    if straight_flush:
+        return (8, straight_flush, 0, 0, 0, 0)
+    quads = max((rank for rank, count in by_rank.items() if count == 4), default=0)
+    if quads:
+        return (7, quads, max(rank for rank in ranks if rank != quads), 0, 0, 0)
+    trips = sorted((rank for rank, count in by_rank.items() if count >= 3), reverse=True)
+    pairs = sorted((rank for rank, count in by_rank.items() if count >= 2), reverse=True)
+    if trips:
+        pair = next((rank for rank in pairs if rank != trips[0]), 0)
+        if pair:
+            return (6, trips[0], pair, 0, 0, 0)
+    flushes = [tuple(sorted(values, reverse=True)[:5]) for values in suit_ranks if len(values) >= 5]
+    if flushes:
+        first, second, third, fourth, fifth = max(flushes)
+        return (5, first, second, third, fourth, fifth)
+    straight = _straight_high_from_ranks(ranks)
+    if straight:
+        return (4, straight, 0, 0, 0, 0)
+    if trips:
+        first, second = sorted((rank for rank in ranks if rank != trips[0]), reverse=True)[:2]
+        return (3, trips[0], first, second, 0, 0)
+    if len(pairs) >= 2:
+        return (2, pairs[0], pairs[1], max(rank for rank in ranks if rank not in pairs[:2]), 0, 0)
+    if pairs:
+        first, second, third = sorted((rank for rank in ranks if rank != pairs[0]), reverse=True)[:3]
+        return (1, pairs[0], first, second, third, 0)
+    first, second, third, fourth, fifth = sorted(ranks, reverse=True)[:5]
+    return (0, first, second, third, fourth, fifth)
+
+
 def enumerate_unknown_opponent(hero_cards, board_cards) -> ExactEquity:
     """Enumerate every heads-up opponent holding after each board completion."""
     hero = _as_cards(hero_cards, "hero_cards", 2)
@@ -172,8 +222,25 @@ def enumerate_fixed_holes(hero_cards, board_cards, opponent_holes) -> ExactEquit
     hero, board, opponents = _topology(hero_cards, board_cards, opponent_holes, (0, 3, 4, 5))
     remaining = _remaining(hero + board + tuple(card for hand in opponents for card in hand))
     missing = 5 - len(board)
-    def rows():
-        for runout in combinations(remaining, missing):
-            final_board = board + runout
-            yield best_five(hero + final_board).score, tuple(best_five(hand + final_board).score for hand in opponents)
+    if missing != 5:
+        def rows():
+            for runout in combinations(remaining, missing):
+                final_board = board + runout
+                yield best_five(hero + final_board).score, tuple(best_five(hand + final_board).score for hand in opponents)
+    else:
+        # Preflop has C(48, 5) runouts.  Avoid 21-subset object construction per
+        # player/runout while keeping the reference evaluator as the authority
+        # for all partial-board paths and testing this shortcut independently.
+        hero_ids = tuple(_card_id(card) for card in hero)
+        opponent_ids = tuple(tuple(_card_id(card) for card in hand) for hand in opponents)
+        board_ids = tuple(_card_id(card) for card in board)
+        remaining_ids = tuple(_card_id(card) for card in remaining)
+
+        def rows():
+            for runout in combinations(remaining_ids, missing):
+                final_board_ids = board_ids + runout
+                yield (
+                    HandScore(*_score_seven_ids(hero_ids + final_board_ids)),
+                    tuple(HandScore(*_score_seven_ids(hand_ids + final_board_ids)) for hand_ids in opponent_ids),
+                )
     return _equity_from_rows(rows(), len(opponents))

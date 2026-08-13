@@ -1,0 +1,10 @@
+{"format_version":"1","contract_version":"v1","derivation":"transparent-reference+treys-0.1.8","id":"high-card","cards":["As","Kd","Qh","Jc","9s"],"expected_key":[0,14,13,12,11,9]}
+{"format_version":"1","contract_version":"v1","derivation":"transparent-reference+treys-0.1.8","id":"one-pair","cards":["As","Ah","Kc","Qd","Jh"],"expected_key":[1,14,13,12,11,0]}
+{"format_version":"1","contract_version":"v1","derivation":"transparent-reference+treys-0.1.8","id":"two-pair-kicker","cards":["As","Ad","Kc","Kd","Qh"],"expected_key":[2,14,13,12,0,0]}
+{"format_version":"1","contract_version":"v1","derivation":"transparent-reference+treys-0.1.8","id":"trips","cards":["As","Ah","Ad","Kc","Qd"],"expected_key":[3,14,13,12,0,0]}
+{"format_version":"1","contract_version":"v1","derivation":"transparent-reference+treys-0.1.8","id":"wheel","cards":["As","2h","3d","4c","5s"],"expected_key":[4,5,0,0,0,0]}
+{"format_version":"1","contract_version":"v1","derivation":"transparent-reference+treys-0.1.8","id":"six-high","cards":["2s","3h","4d","5c","6s"],"expected_key":[4,6,0,0,0,0]}
+{"format_version":"1","contract_version":"v1","derivation":"transparent-reference+treys-0.1.8","id":"flush-kicker","cards":["Ah","Kh","9h","5h","2h"],"expected_key":[5,14,13,9,5,2]}
+{"format_version":"1","contract_version":"v1","derivation":"transparent-reference+treys-0.1.8","id":"double-trips","cards":["As","Ah","Ad","Ks","Kh","Kd","Qc"],"expected_key":[6,14,13,0,0,0]}
+{"format_version":"1","contract_version":"v1","derivation":"transparent-reference+treys-0.1.8","id":"quads-kicker","cards":["As","Ah","Ad","Ac","Kd"],"expected_key":[7,14,13,0,0,0]}
+{"format_version":"1","contract_version":"v1","derivation":"transparent-reference+treys-0.1.8","id":"royal-display-straight-flush","cards":["As","Ks","Qs","Js","Ts","2c","3d"],"expected_key":[8,14,0,0,0,0]}

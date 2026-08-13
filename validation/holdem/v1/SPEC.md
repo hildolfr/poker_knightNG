@@ -1,22 +1,22 @@
 # Hold'em v1 validation and conformance specification
 
-**Status:** binding Phase 0 contract/validation specification; no evaluator, reference backend, deterministic dealer, CUDA backend, fixture corpus, or service is claimed implemented by this document.
+**Status:** binding v1 contract/validation specification. Phase 2 checkpoint C adds the committed rank/exact/tie fixture corpus, manifest, and independent-engine qualification record described below; deterministic dealer/stream, CUDA backend, and service remain unimplemented.
 
 ## 1. Authority, scope, and future artifacts
 
 The normative authorities are [ADR 0001](../../../docs/adr/0001-equity-v1-scope.md) (scope and no-fallback rule), [ADR 0002](../../../docs/adr/0002-card-rank-and-tie-semantics.md) (cards, rank keys, outcomes, categories, and equity), [ADR 0003](../../../docs/adr/0003-deterministic-rng-and-deal-order.md) (case bytes, SHA-256, Philox, and dealing), and the v1 [request](../../../contracts/v1/equity-request.schema.json), [result](../../../contracts/v1/equity-result.schema.json), and [problem](../../../contracts/v1/problem.schema.json) schemas.  If wording conflicts, the ADR/schema that owns the subject controls.
 
-The preserved legacy code and tests are evidence and may suggest vectors; they are **not an oracle**.  Phase 2's independent transparent evaluator/exact oracle and Phase 3's deterministic CPU stream remain future work.  Neither may be inferred from this SPEC.
+The preserved legacy code and tests are evidence and may suggest vectors; they are **not an oracle**. Phase 2's independent transparent evaluator/exact oracle, its committed fixture corpus, and its independent-engine qualification are available. This does not complete the Phase 2 release: the full 133,784,560 seven-card release-candidate corpus remains an outstanding gate. Phase 3's deterministic CPU stream remains future work.
 
-The planned, but deliberately absent, generated materials are:
+The committed Phase 2 fixture materials are:
 
 * `canonical_rank_vectors.jsonl`
 * `exact_holdem_cases.jsonl`
 * `tie_and_split_cases.jsonl`
-* `rng_seed_bank.json`
 * `manifests/sha256sums.txt`
+* `QUALIFICATION.md`
 
-Future fixture manifests MUST record corpus SHA-256, generator source revision, contract/ADR version, and derivation inputs. Fixture generation MUST be reviewed separately from the production evaluator/CUDA path. No generated fixture may use legacy code or production CUDA as its sole oracle: every asserted fixture needs at least one independently derived path (transparent five-card/subset enumeration, independently reviewed arithmetic, or a separately pinned differential engine). A manifest authenticates bytes, not truth.
+`rng_seed_bank.json` remains planned for Phase 3. The qualification record documents the reproducible generator command, derivation inputs, and separately pinned differential engine. Fixture generation is reviewed separately from any production evaluator/CUDA path. No generated fixture may use legacy code or production CUDA as its sole oracle: every asserted fixture needs at least one independently derived path (transparent five-card/subset enumeration, independently reviewed arithmetic, or a separately pinned differential engine). A manifest authenticates bytes, not truth.
 
 ## 2. Layers and evidence plan
 
@@ -24,7 +24,7 @@ Future fixture manifests MUST record corpus SHA-256, generator source revision, 
 |---|---|---|---|
 | Schema/structural | JSON shape, closed objects, lexical wire formats | schema positives/negatives | planned |
 | Semantic | cross-field meanings and integer conservation | contract semantic tests | planned |
-| Exact evaluator/oracle | five-card keys, best 5 of 7, exact Hold'em counts | rank/exact/tie JSONL fixtures | Phase 2 |
+| Exact evaluator/oracle | five-card keys, best 5 of 7, exact Hold'em counts | committed rank/exact/tie JSONL fixtures, SHA-256 manifest, Treys differential qualification | Phase 2 checkpoint C |
 | Deterministic stream replay | case bytes/hash, Philox, selection and deals | KATs, deal vectors, seed bank | Phase 3 |
 | CUDA conformance | CPU/CUDA exact integer-result equality and geometry invariance | differential/trace tests | Phase 4 |
 | Statistical characterization | predeclared interval checks against exact cases | deterministic seed-bank jobs | later |
@@ -99,9 +99,9 @@ Future rank fixtures MUST reproduce ADR 0002’s wheel `(4,5,0,0,0,0)`, six-high
 | 5 | 6 | 70 | bin 5 increments once; tie event numerator increments once |
 | 6 | 7 | 60 | bin 6 increments once; tie event numerator increments once |
 
-### Independent documented derivations (Phase 0 evidence)
+### Independent documented derivations (Phase 0 evidence retained)
 
-These are two auditable derivations, not assertions that independent executable oracle software already exists.
+These two auditable derivations predate the executable Phase 2 oracle and remain useful review evidence; checkpoint C additionally supplies executable fixture reproduction and differential qualification.
 
 | ADR 0002 example | Method A: rank-key / evaluator comparison | Method B: independent subset or winner-set arithmetic | Required result |
 |---|---|---|---|
@@ -177,4 +177,6 @@ Later statistical tests use fixed named seeds and trial counts from the committe
 - [x] This SPEC gives two canonicalization/hash derivations for the equivalent wire case; executable temporary verification repeats them.
 - [x] Every required result and nested result field appears in the matrix with semantics, units/wire representation, provenance, and planned test.
 - [x] Schema meta-validation and positive/negative examples are required; no analytics fields, fallback, adaptive sampling, or parallel-GPU promises enter v1.
-- [x] Project-owner human approval was explicitly recorded after independent specification and quality reviews; the Phase 0 contract is approved for Phase 1. Executable implementations, generated fixtures/manifests, the independent Phase 2 oracle, and the Phase 3 stream do not yet exist and are not claimed here.
+- [x] Project-owner human approval was explicitly recorded after independent specification and quality reviews; the Phase 0 contract is approved for Phase 1.
+- [x] Phase 2 checkpoint C supplies an executable independent reference oracle, generated rank/exact/tie fixtures, their SHA-256 manifest, and a separately pinned differential-engine qualification record.
+- [ ] Deterministic stream, CUDA backend, and service remain future work.
