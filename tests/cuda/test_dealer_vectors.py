@@ -35,7 +35,14 @@ int main() {
       DealerResult r{}; const DealerStatus s=deal_adr0003(known, known_count, opponents, k0, k1, sim, &r);
       std::cout << static_cast<unsigned>(s) << ' ' << static_cast<unsigned>(r.draw_count);
       for (unsigned i=0;i<r.draw_count;++i) std::cout << ' ' << static_cast<unsigned>(r.dealt_card_ids[i]) << ':' << r.final_attempts[i] << ':' << r.rejection_counts[i];
-      std::cout << '\n';
+      std::cout << ' ' << r.failure_draw_slot << '\n';
+    } else if (mode == 3) {
+      DealerResult r{};
+      std::cout << r.failure_draw_slot << ' ';
+      r.status=DealerStatus::RNG_REJECTION_EXHAUSTED; r.failure_draw_slot=17;
+      const std::uint8_t known[2]={12,25};
+      const DealerStatus s=deal_adr0003(known, 2, 1, 0x31CEE788, 0xABEB8F0C, 7, &r);
+      std::cout << static_cast<unsigned>(s) << ' ' << static_cast<unsigned>(r.status) << ' ' << r.failure_draw_slot << '\n';
     } else {
       std::uint32_t candidate, range, attempt, rejects, index=0; std::cin >> candidate >> range >> attempt >> rejects;
       bool accepted=false;
@@ -77,8 +84,9 @@ def test_known_deal_and_selection_rejection_boundaries(dealer_harness):
     line="1 %d %d 7 5 2 12 25 0 14 34" % (0x31CEE788,0xABEB8F0C)
     fields=_run(dealer_harness,[line])[0].split()
     assert fields[:2] == ["0","6"]
-    assert [x.split(":")[0] for x in fields[2:]] == ["7","8","37","42","15","10"]
-    assert all(x.endswith(":0:0") for x in fields[2:])
+    assert [x.split(":")[0] for x in fields[2:-1]] == ["7","8","37","42","15","10"]
+    assert all(x.endswith(":0:0") for x in fields[2:-1])
+    assert int(fields[-1]) == 0xFFFFFFFF
     # A: production candidate step rejects then accepts, preserving state on accept.
     assert _run(dealer_harness,["2 4294967295 3 0 0"])[0] == "0 0 0 1 1"
     assert _run(dealer_harness,["2 4 3 1 1"])[0] == "0 1 1 1 1"
@@ -86,6 +94,10 @@ def test_known_deal_and_selection_rejection_boundaries(dealer_harness):
     assert _run(dealer_harness,["2 4294967295 3 4294967295 4294967295"])[0] == "1 0 0 4294967295 4294967295"
     # C: normal acceptance at zero changes neither attempt nor rejection count.
     assert _run(dealer_harness,["2 4 3 0 0"])[0] == "0 1 1 0 0"
+
+def test_dealer_result_failure_slot_default_and_reuse_reset(dealer_harness):
+    assert _run(dealer_harness, ["3"]) == ["4294967295 0 0 4294967295"]
+
 
 def test_cpu_differential_5000_and_scheduling_independence(dealer_harness):
     rng=random.Random(0xD34E1)
@@ -108,8 +120,9 @@ def test_cpu_differential_5000_and_scheduling_independence(dealer_harness):
     rows=_run(dealer_harness,lines)
     for row,(*_,expected) in zip(rows,cases):
         f=row.split(); assert f[:2]==["0",str(len(expected.dealt_card_ids))]
-        assert [int(x.split(':')[0]) for x in f[2:]]==list(expected.dealt_card_ids)
-        assert [(int(x.split(':')[1]),int(x.split(':')[2])) for x in f[2:]]==[(s.final_attempt,s.rejection_count) for s in expected.trace.slots]
+        assert [int(x.split(':')[0]) for x in f[2:-1]]==list(expected.dealt_card_ids)
+        assert [(int(x.split(':')[1]),int(x.split(':')[2])) for x in f[2:-1]]==[(s.final_attempt,s.rejection_count) for s in expected.trace.slots]
+        assert int(f[-1]) == 0xFFFFFFFF
     indices=[7,2,4999,17,700]
     rerun=_run(dealer_harness,[lines[i] for i in reversed(indices)])
     assert rerun == [rows[i] for i in reversed(indices)]

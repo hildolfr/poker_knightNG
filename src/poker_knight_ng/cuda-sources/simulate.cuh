@@ -20,7 +20,12 @@ struct TrialResult {
   std::uint8_t hero_category = 0;
   std::uint16_t equity_share_units = 0;
   std::uint64_t rejection_count = 0;
+  std::uint32_t failure_draw_slot = NO_FAILURE_DRAW_SLOT;
 };
+
+PKNG_HD constexpr std::uint32_t trial_failure_draw_slot(const DealerStatus status, const std::uint32_t dealer_slot) {
+  return status == DealerStatus::RNG_REJECTION_EXHAUSTED ? dealer_slot : NO_FAILURE_DRAW_SLOT;
+}
 
 PKNG_HD constexpr TrialStatus trial_status_from_dealer(const DealerStatus status) {
   return status == DealerStatus::OK ? TrialStatus::OK :
@@ -41,6 +46,7 @@ PKNG_HD inline TrialStatus simulate_one_trial(const std::uint8_t hero[2], const 
     const std::uint32_t k1, const std::uint64_t simulation_id, TrialResult* result) {
   if (!result) return TrialStatus::INVALID_INPUT;
   result->status = TrialStatus::INVALID_INPUT;
+  result->failure_draw_slot = NO_FAILURE_DRAW_SLOT;
   if (!hero || (board_count != 0 && !board) || !(board_count == 0 || board_count == 3 || board_count == 4 || board_count == 5) || opponents < 1 || opponents > 6) return result->status;
   if (hero[0] >= 52 || hero[1] >= 52 || hero[0] >= hero[1]) return result->status;
   for (std::uint32_t index = 0; index < board_count; ++index) {
@@ -55,6 +61,7 @@ PKNG_HD inline TrialStatus simulate_one_trial(const std::uint8_t hero[2], const 
   DealerResult deal{};
   const DealerStatus dealer_status = deal_adr0003(known, 2 + board_count, opponents, k0, k1, simulation_id, &deal);
   result->status = trial_status_from_dealer(dealer_status);
+  result->failure_draw_slot = trial_failure_draw_slot(dealer_status, deal.failure_draw_slot);
   if (result->status != TrialStatus::OK) return result->status;
 
   std::uint8_t hero_hand[7]{};

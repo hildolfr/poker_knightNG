@@ -36,13 +36,17 @@ int main() {
       TrialResult r{}; const TrialStatus s=simulate_one_trial(hero, board, known_count-2, opponents, k0, k1, sim, &r);
       std::cout << static_cast<unsigned>(s) << ' ' << static_cast<unsigned>(r.status) << ' '
                 << static_cast<unsigned>(r.outcome) << ' ' << static_cast<unsigned>(r.tie_other_winners) << ' '
-                << r.equity_share_units << ' ' << static_cast<unsigned>(r.hero_category) << ' ' << r.rejection_count << '\n';
+                << r.equity_share_units << ' ' << static_cast<unsigned>(r.hero_category) << ' ' << r.rejection_count << ' '
+                << r.failure_draw_slot << '\n';
     } else if (mode == 1) {
       std::cout << sizeof(TrialResult) << ' ' << sizeof(decltype(TrialResult::equity_share_units)) << ' '
-                << sizeof(decltype(TrialResult::rejection_count)) << '\n';
+                << sizeof(decltype(TrialResult::rejection_count)) << ' '
+                << sizeof(decltype(TrialResult::failure_draw_slot)) << '\n';
     } else {
-      unsigned dealer_status; std::cin >> dealer_status;
-      std::cout << static_cast<unsigned>(trial_status_from_dealer(static_cast<DealerStatus>(dealer_status))) << '\n';
+      unsigned dealer_status; std::uint32_t slot; std::cin >> dealer_status >> slot;
+      const DealerStatus status=static_cast<DealerStatus>(dealer_status);
+      std::cout << static_cast<unsigned>(trial_status_from_dealer(status)) << ' '
+                << trial_failure_draw_slot(status, slot) << '\n';
     }
   }
 }
@@ -78,7 +82,7 @@ def _expected(seed: int, hero: tuple[int, int], board: tuple[int, ...], opponent
     ties = next((index + 1 for index, count in enumerate(result.tie_by_other_winners) if count), 0)
     outcome = 0 if result.unique_wins else (1 if ties else 2)
     category = next(index for index, count in enumerate(result.hero_category_counts) if count)
-    return (0, 0, outcome, ties, result.equity_share_units, category, result.rejection_count)
+    return (0, 0, outcome, ties, result.equity_share_units, category, result.rejection_count, 0xFFFFFFFF)
 
 
 def test_trial_direct_known_vectors_and_result_abi(simulator_harness: Path) -> None:
@@ -88,10 +92,11 @@ def test_trial_direct_known_vectors_and_result_abi(simulator_harness: Path) -> N
         (0x9988776655443322, (3, 41), (), 6, 0),
     ]
     assert _run(simulator_harness, [_line(*case) for case in cases]) == [_expected(*case) for case in cases]
-    size, units_width, rejections_width = _run(simulator_harness, ["1"])[0]
+    size, units_width, rejections_width, failure_slot_width = _run(simulator_harness, ["1"])[0]
     assert size >= 16
     assert units_width == 2
     assert rejections_width == 8
+    assert failure_slot_width == 4
 
 
 def test_trial_differential_5000_full_topology_and_scheduling(simulator_harness: Path) -> None:
@@ -172,8 +177,10 @@ def test_named_outcome_branches_max_tie_and_rare_category_boundaries(simulator_h
     assert [row[5] for row in rare_rows] == [7, 8]
 
 
-def test_dealer_status_mapping_is_total_for_declared_statuses(simulator_harness: Path) -> None:
-    assert _run(simulator_harness, ["2 0", "2 1", "2 2"]) == [(0,), (1,), (2,)]
+def test_dealer_status_and_failure_slot_mapping_is_total(simulator_harness: Path) -> None:
+    assert _run(simulator_harness, ["2 0 9", "2 1 0", "2 1 16", "2 2 9", "2 99 9"]) == [
+        (0, 0xFFFFFFFF), (1, 0), (1, 16), (2, 0xFFFFFFFF), (2, 0xFFFFFFFF)
+    ]
 
 
 def test_invalid_topology_has_invalid_status(simulator_harness: Path) -> None:
