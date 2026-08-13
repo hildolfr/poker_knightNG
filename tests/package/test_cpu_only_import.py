@@ -76,8 +76,10 @@ def test_contract_only_source_and_archives_exclude_legacy_and_test_content(tmp_p
 
     required_native = {path.relative_to(package).as_posix() for suffix in ("*.cu", "*.cuh") for path in package.rglob(suffix)}
     standalone_evaluator = {"cuda-sources/cards.cuh", "cuda-sources/evaluator.cuh"}
+    standalone_dealer = {"cuda-sources/philox.cuh", "cuda-sources/dealer.cuh"}
     assert standalone_evaluator <= required_native
-    assert len(required_native) == 8
+    assert standalone_dealer <= required_native
+    assert len(required_native) == 10
     assert all((package / path).is_file() for path in REQUIRED_PYTHON)
 
     subprocess.run(["uv", "build", "--out-dir", str(tmp_path)], cwd=root, check=True)
