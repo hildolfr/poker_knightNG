@@ -171,7 +171,15 @@ Future negatives MUST schema-validate both representative valid problem document
 
 Later statistical tests use fixed named seeds and trial counts from the committed seed bank. They MUST NOT use stale legacy tolerance claims as a correctness oracle. Exact rank, deal, counter, W/T/L, category, equity-unit, fraction, CPU/CUDA, and geometry invariants have zero tolerance. Statistical intervals/tolerances must be preregistered before the run, fixed rather than adaptive, and appropriate to their estimand (Wilson only for named Bernoulli events; a separately documented bounded-mean interval for pot-share equity). CPU/CUDA deterministic conformance is exact integer equality, never interval agreement.
 
-## 8. Phase 0 close gate
+## 8. Phase 3 checkpoint D seed bank
+
+`rng_seed_bank.json` is a generated, committed, hash-bound preregistration for deterministic CPU Monte Carlo verification. `tools/generate_rng_seed_bank.py --release` independently implements canonical encoding, Philox, rejection sampling, swap-with-tail dealing, and outcome accumulation to generate every authoritative integer counter; it then replays the generated rows through the production CPU reference before atomically publishing the bank together with `manifests/rng_seed_bank.sha256`. The dedicated manifest binds the bank and every authority input byte. `--verify` regenerates and independently verifies this complete bundle, rejecting stale, hand-edited, or unbound artifacts.
+
+Every exact row fixes the canonical bytes/hash, seed, topology, requested trial count, and every authoritative integer counter. Verification recomputes the bytes/hash and supplies that exact hash as `replay_case_hash`; a one-bit mutation fails before a deal starts. Publication stages fsync'd files and rolls back replaced destinations if a later replacement fails; it is recoverable bundle atomicity, rather than an unsupported claim of filesystem-wide crash atomicity.
+
+The named statistical row is also replayed exactly as a regression guard, then checked against its preregistered estimands using a fixed two-sided Wilson score interval (`alpha=0.000001`, fixed `z=4.891638475698591`). The test never adapts trials, tolerance, seeds, or interval after execution. W/T/L are separately bounded Bernoulli events; pot-share equity is separately qualified with fixed two-sided Hoeffding bounded-mean radius `sqrt(log(2/alpha)/(2*N))`, alpha `0.000001`, range `[0,1]`, against exact population equity `exact_units/(420*population_N)`; it is never a Wilson estimand.
+
+## 9. Phase 0 close gate
 
 - [x] This SPEC gives two documented derivations agreeing on every ADR 0002 tie/equity example.
 - [x] This SPEC gives two canonicalization/hash derivations for the equivalent wire case; executable temporary verification repeats them.
