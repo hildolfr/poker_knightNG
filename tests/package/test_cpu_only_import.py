@@ -75,7 +75,9 @@ def test_contract_only_source_and_archives_exclude_legacy_and_test_content(tmp_p
         assert importlib.util.find_spec(module) is None
 
     required_native = {path.relative_to(package).as_posix() for suffix in ("*.cu", "*.cuh") for path in package.rglob(suffix)}
-    assert len(required_native) == 6
+    standalone_evaluator = {"cuda-sources/cards.cuh", "cuda-sources/evaluator.cuh"}
+    assert standalone_evaluator <= required_native
+    assert len(required_native) == 8
     assert all((package / path).is_file() for path in REQUIRED_PYTHON)
 
     subprocess.run(["uv", "build", "--out-dir", str(tmp_path)], cwd=root, check=True)
