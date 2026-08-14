@@ -35,7 +35,8 @@ The committed Phase 2 fixture materials are:
 - **Phase 4 — explicit CUDA engine: COMPLETE.** CUDA remains explicitly selected and never silently substituted.
 - **Phase 5A — deterministic GPU qualification harness: COMPLETE.**
 - **Phase 5B — qualification publication: COMPLETE.** The source checkpoint is `c2b3eb96413d17194a85144491c71539a4818452`; the later publication checkpoint does not replace that source identity.
-- **Phase 5C-A — CUDA statistical qualification harness: COMPLETE.** The evidence schema, fixed geometry plans, corrected observed-sample Wilson direction, Hoeffding gate, exact aggregate equality, and single-attempt worker/orchestrator are frozen. Live GPU execution and any public Phase 5C pass record remain pending and are not implied by this status.
+- **Phase 5C-A — CUDA statistical qualification harness: COMPLETE.** The evidence schema, fixed geometry plans, corrected observed-sample Wilson direction, Hoeffding gate, exact aggregate equality, and single-attempt worker/orchestrator are frozen.
+- **Phase 5C-B — CUDA statistical execution and publication: COMPLETE.** Executed source `f5b31a0cb94e6139cb81be2f013d9d6c44017d98` passed all four frozen geometries; the privacy-safe public record identity-binds the canonical private evidence digest and historical harness closure.
 
 Structural schema validity is necessary but never proves semantic validity. Exact oracle comparison is not a substitute for deterministic replay, and statistical agreement never waives an exact invariant.
 

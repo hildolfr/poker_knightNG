@@ -16,6 +16,7 @@ uv run python tools/generate_oracle_fixtures.py --verify
 uv run python tools/qualify_seven_card_corpus.py --verify
 uv run python tools/generate_rng_seed_bank.py --verify
 uv run python tools/verify_cuda_release_qualification.py
+uv run python tools/verify_cuda_statistical_release_qualification.py
 ```
 
 The exhaustive seven-card release qualification remains deliberately opt-in:
@@ -38,7 +39,7 @@ The qualified source checkpoint is `c2b3eb96413d17194a85144491c71539a4818452`. I
 
 The compact public record is `validation/holdem/v1/cuda_release_qualification.json`; verify it with `tools/verify_cuda_release_qualification.py`. The record binds the source closure, qualification tool, seed authority, lockfile, wheel/sdist/JUnit/sanitizer hashes, and the private canonical evidence hash without publishing host paths, process inventories, or raw device names.
 
-The Phase 5C statistical harness and evidence schema are preregistered, but no Phase 5C GPU pass is claimed yet. See `validation/holdem/v1/STATISTICAL_QUALIFICATION.md`.
+Phase 5C statistical qualification passed on executed source `f5b31a0cb94e6139cb81be2f013d9d6c44017d98`: all four preregistered batch geometries produced the exact frozen integer aggregate, exact planned kernel-call traces, passing fixed-stream Wilson/Hoeffding gates, and zero rejection count. The privacy-safe public record is `validation/holdem/v1/cuda_statistical_release_qualification.json`; verify it CPU-only with `tools/verify_cuda_statistical_release_qualification.py`.
 
 CUDA result provenance is restricted to `cuda-uuid:<UUID.hex()>` and `cuda-source-sha256:<approved digest>`. Host-side validation, canonical case hashing, and Philox key derivation remain authoritative.
 

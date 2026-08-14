@@ -1,6 +1,6 @@
 # Phase 5C CUDA statistical qualification preregistration
 
-**Status:** frozen harness contract; no GPU result is claimed by this document.
+**Status:** PASS on executed source `f5b31a0cb94e6139cb81be2f013d9d6c44017d98`; public record `cuda_statistical_release_qualification.json`.
 
 Phase 5C qualifies one already-committed deterministic Monte Carlo stream across four real CUDA batch geometries. It does not change the public API, default `solve()` routing, request semantics, RNG stream, integer reducer, or Phase 5A/5B evidence identities.
 

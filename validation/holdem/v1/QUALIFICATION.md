@@ -46,9 +46,17 @@ The public record deliberately contains no host paths, process IDs, workload inv
 
 This qualification does **not** change routing: `solve()` remains CPU-default and an explicit CUDA request through it fails `BACKEND_UNAVAILABLE`. Qualified CUDA execution is opt-in through `CUDAEngine`. There is no network service or silent fallback.
 
-## Phase 5C statistical qualification status
+## Phase 5C statistical qualification
 
-The CUDA statistical qualification harness is preregistered in `STATISTICAL_QUALIFICATION.md` and `cuda_statistical_qualification.schema.json`. No Phase 5C GPU run or pass record is claimed yet. Its future execution must use the exact committed harness SHA, one fixed stream, four frozen geometries, and no retries or adaptive tolerances.
+**PASS — executed source `f5b31a0cb94e6139cb81be2f013d9d6c44017d98`.** The identity-bound private evidence SHA-256 is `18782f307c424b7f94a363892324aab2ae8b108e4bb579ed754cf407b049a793`. All four frozen batch geometries matched their exact kernel-call plans and complete CPU/frozen integer aggregate; every preregistered Wilson/Hoeffding gate passed and rejection count was zero.
+
+The privacy-safe public record is `cuda_statistical_release_qualification.json`. Verify it without CuPy or GPU access:
+
+```sh
+uv run python tools/verify_cuda_statistical_release_qualification.py
+```
+
+The record omits host paths, process inventory, memory snapshots, raw device names, and timing data. This qualification does not change routing: `solve()` remains CPU-default; CUDA remains explicit through `CUDAEngine`.
 
 ## Phase 2 oracle fixture qualification
 
