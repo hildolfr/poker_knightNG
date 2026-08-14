@@ -146,7 +146,11 @@ def build(root: Path = ROOT) -> dict[str, bytes]:
     bank = {"format_version": "1", "purpose": "Phase 3 checkpoint D generated, independently verified, hash-bound deterministic CPU seed-bank verification", "rng": {"algorithm_id": "poker-knight-ng/philox4x32-10", "algorithm_version": "1"}, "exact_vectors": exact, "statistical_vectors": statistical}
     bank_bytes = (json.dumps(bank, sort_keys=True, separators=(",", ":"), ensure_ascii=True) + "\n").encode("ascii")
     manifest_entries = [(hashlib.sha256(bank_bytes).hexdigest(), BANK_PATH.as_posix())]
-    manifest_entries.extend((hashlib.sha256((root / name).read_bytes()).hexdigest(), name) for name in AUTHORITY_NAMES)
+    manifest_entries.extend(
+        (hashlib.sha256((root / name).read_bytes()).hexdigest(), name)
+        for name in AUTHORITY_NAMES
+    )
+    manifest_entries.sort(key=lambda item: item[1])
     manifest_bytes = "".join(f"{digest}  {name}\n" for digest, name in manifest_entries).encode("ascii")
     return {BANK_NAME: bank_bytes, MANIFEST_NAME: manifest_bytes}
 
@@ -208,7 +212,7 @@ def _parse_bank(data):
             if type(b) is not dict or set(b)!={"method","two_sided_alpha","range","formula","population_exact_units","population_N"} or b["method"]!="Hoeffding bounded mean" or b["two_sided_alpha"]!="0.000001" or b["range"] != ["0","1"] or b["formula"]!="sqrt(log(2/alpha)/(2*N))" or len(set(denoms)) != 1 or sum(nums)!=denoms[0] or _uint(b["population_exact_units"],"population units") > 420*_uint(b["population_N"],"population N",positive=True): raise SeedBankError("invalid bounded mean")
     return bank
 def _parse_manifest(data):
-    names=(BANK_PATH.as_posix(),)+AUTHORITY_NAMES
+    names = tuple(sorted((BANK_PATH.as_posix(),) + AUTHORITY_NAMES))
     if not data or not data.endswith(b"\n") or b"\r" in data: raise SeedBankError("invalid manifest")
     try: lines=data.decode("ascii").splitlines()
     except UnicodeDecodeError: raise SeedBankError("invalid manifest ASCII") from None

@@ -1,12 +1,12 @@
 # Hold'em v1 validation and conformance specification
 
-**Status:** binding v1 contract/validation specification. The schema/semantic contract, exact oracle, deterministic CPU stream/engine, explicit CUDA engine, and deterministic GPU qualification/publication checkpoints are complete. A network service and automatic CUDA routing remain unimplemented.
+**Status:** binding v1 contract/validation specification. The schema/semantic contract, exact oracle, deterministic CPU stream/engine, explicit CUDA engine, deterministic GPU qualification/publication checkpoints, and explicit local Python API/CLI are complete. A network service and automatic CUDA routing remain unimplemented.
 
 ## 1. Authority, scope, and future artifacts
 
-The normative authorities are [ADR 0001](../../../docs/adr/0001-equity-v1-scope.md) (scope and no-fallback rule), [ADR 0002](../../../docs/adr/0002-card-rank-and-tie-semantics.md) (cards, rank keys, outcomes, categories, and equity), [ADR 0003](../../../docs/adr/0003-deterministic-rng-and-deal-order.md) (case bytes, SHA-256, Philox, and dealing), and the v1 [request](../../../contracts/v1/equity-request.schema.json), [result](../../../contracts/v1/equity-result.schema.json), and [problem](../../../contracts/v1/problem.schema.json) schemas.  If wording conflicts, the ADR/schema that owns the subject controls.
+The normative authorities are [ADR 0001](../../../docs/adr/0001-equity-v1-scope.md) (scope and no-fallback rule), [ADR 0002](../../../docs/adr/0002-card-rank-and-tie-semantics.md) (cards, rank keys, outcomes, categories, and equity), [ADR 0003](../../../docs/adr/0003-deterministic-rng-and-deal-order.md) (case bytes, SHA-256, Philox, and dealing), [ADR 0004](../../../docs/adr/0004-explicit-cuda-routing-and-cli.md) (explicit local API/CLI routing and bounded command-line behavior), and the v1 [request](../../../contracts/v1/equity-request.schema.json), [result](../../../contracts/v1/equity-result.schema.json), and [problem](../../../contracts/v1/problem.schema.json) schemas. If wording conflicts, the ADR/schema that owns the subject controls.
 
-The preserved legacy code and tests are evidence and may suggest vectors; they are **not an oracle**. Phase 2's independent transparent evaluator/exact oracle, committed fixture corpus, independent-engine qualification, and complete `C(52,7)=133,784,560` release-candidate category corpus are available. The hash-bound `seven_card_release_qualification.json` records exact canonical totals and its honest differential scope: the exact C category function used by the exhaustive counter, transparent evaluator, and pinned Treys 0.1.8 agree per hand on a deterministic 10,000-hand all-category/wheel sample, while every full-space category is checked against canonical totals. Phase 3 supplies the deterministic Philox/deal stream, CPU Monte Carlo engine, and generated seed bank. Phase 4 supplies the explicit CUDA engine and source-hashed runtime. Phase 5 supplies the fail-closed exact-SHA GPU qualification harness and public hash-bound qualification record.
+The preserved legacy code and tests are evidence and may suggest vectors; they are **not an oracle**. Phase 2's independent transparent evaluator/exact oracle, committed fixture corpus, independent-engine qualification, and complete `C(52,7)=133,784,560` release-candidate category corpus are available. The hash-bound `seven_card_release_qualification.json` records exact canonical totals and its honest differential scope: the exact C category function used by the exhaustive counter, transparent evaluator, and pinned Treys 0.1.8 agree per hand on a deterministic 10,000-hand all-category/wheel sample, while every full-space category is checked against canonical totals. Phase 3 supplies the deterministic Philox/deal stream, CPU Monte Carlo engine, and generated seed bank. Phase 4 supplies the explicit CUDA engine and source-hashed runtime. Phase 5 supplies the fail-closed exact-SHA GPU qualification/statistical harnesses and public hash-bound qualification records. Phase 6 supplies the explicit no-fallback local Python API and bounded JSON CLI.
 
 The committed Phase 2 fixture materials are:
 
@@ -27,7 +27,7 @@ The committed Phase 2 fixture materials are:
 | Exact evaluator/oracle | five-card keys, best 5 of 7, exact Hold'em counts | committed rank/exact/tie JSONL fixtures, SHA-256 manifest, Treys differential qualification | Phase 2 complete |
 | Deterministic stream replay | case bytes/hash, Philox, selection and deals | KATs, deal vectors, seed bank | Phase 3 complete |
 | CUDA conformance | CPU/CUDA exact integer-result equality, fixed reduction geometry, cold/warm/PTX paths, sanitizers | exact-SHA qualification harness and public record | Phases 4–5 complete |
-| Statistical characterization | predeclared interval checks against exact cases | deterministic seed-bank jobs | later |
+| Statistical characterization | predeclared interval checks against exact cases | deterministic seed-bank jobs | Phase 5C complete |
 
 ### Implemented checkpoint status
 
@@ -37,6 +37,7 @@ The committed Phase 2 fixture materials are:
 - **Phase 5B — qualification publication: COMPLETE.** The source checkpoint is `c2b3eb96413d17194a85144491c71539a4818452`; the later publication checkpoint does not replace that source identity.
 - **Phase 5C-A — CUDA statistical qualification harness: COMPLETE.** The evidence schema, fixed geometry plans, corrected observed-sample Wilson direction, Hoeffding gate, exact aggregate equality, and single-attempt worker/orchestrator are frozen.
 - **Phase 5C-B — CUDA statistical execution and publication: COMPLETE.** Executed source `f5b31a0cb94e6139cb81be2f013d9d6c44017d98` passed all four frozen geometries; the privacy-safe public record identity-binds the canonical private evidence digest and historical harness closure.
+- **Phase 6 — explicit public API and CLI: COMPLETE.** `solve()` remains CPU-only; `solve_cuda()` and `solve-cuda` are explicit CUDA routes with no fallback, bounded strict JSON input, canonical v1 output, and closed problem/exit behavior.
 
 Structural schema validity is necessary but never proves semantic validity. Exact oracle comparison is not a substitute for deterministic replay, and statistical agreement never waives an exact invariant.
 
@@ -178,7 +179,7 @@ Negative tests MUST schema-validate both representative valid problem documents 
 
 ## 7. Statistical boundaries
 
-Later statistical tests use fixed named seeds and trial counts from the committed seed bank. They MUST NOT use stale legacy tolerance claims as a correctness oracle. Exact rank, deal, counter, W/T/L, category, equity-unit, fraction, CPU/CUDA, and geometry invariants have zero tolerance. Statistical intervals/tolerances must be preregistered before the run, fixed rather than adaptive, and appropriate to their estimand (Wilson only for named Bernoulli events; a separately documented bounded-mean interval for pot-share equity). CPU/CUDA deterministic conformance is exact integer equality, never interval agreement.
+Phase 5C statistical qualification uses fixed named seeds and trial counts from the committed seed bank. It MUST NOT use stale legacy tolerance claims as a correctness oracle. Exact rank, deal, counter, W/T/L, category, equity-unit, fraction, CPU/CUDA, and geometry invariants have zero tolerance. Statistical intervals/tolerances are preregistered before the run, fixed rather than adaptive, and appropriate to their estimand (Wilson only for named Bernoulli events; a separately documented bounded-mean interval for pot-share equity). CPU/CUDA deterministic conformance is exact integer equality, never interval agreement.
 
 ## 8. Phase 3 checkpoint D seed bank
 
@@ -197,4 +198,5 @@ The named statistical row is also replayed exactly as a regression guard, then c
 - [x] Project-owner human approval was explicitly recorded after independent specification and quality reviews; the Phase 0 contract is approved for Phase 1.
 - [x] Phase 2 checkpoint C supplies an executable independent reference oracle, generated rank/exact/tie fixtures, their SHA-256 manifest, and a separately pinned differential-engine qualification record.
 - [x] Deterministic CPU stream/engine and explicit qualified CUDA engine are implemented with no fallback.
-- [ ] Network service and explicit user-facing routing beyond direct engine selection remain future work.
+- [x] Explicit user-facing local Python API and CLI routing are implemented with no fallback.
+- [ ] A network service and automatic CUDA routing remain future work.

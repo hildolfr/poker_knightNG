@@ -23,11 +23,19 @@ def _signed(g, bank, root=ROOT):
     data = (json.dumps(bank, sort_keys=True, separators=(",", ":"), ensure_ascii=True) + "\n").encode("ascii")
     entries = [(hashlib.sha256(data).hexdigest(), g.BANK_PATH.as_posix())]
     entries += [(hashlib.sha256((root / name).read_bytes()).hexdigest(), name) for name in g.AUTHORITY_NAMES]
+    entries.sort(key=lambda item: item[1])
     return data, "".join(f"{d}  {n}\n" for d, n in entries).encode("ascii")
 
 
 def _bank(g):
     return json.loads((ROOT / g.BANK_PATH).read_text("ascii"))
+
+
+def test_committed_manifest_paths_are_lexically_sorted():
+    g = _g()
+    manifest = (ROOT / g.MANIFEST_PATH).read_text("ascii").splitlines()
+    paths = [line[66:] for line in manifest]
+    assert paths == sorted(paths)
 
 
 def _semantic_failure(g, monkeypatch, mutate):

@@ -24,6 +24,41 @@ def request(*, backend="cpu_reference", trials=2):
     )
 
 
+def test_authoritative_spec_records_phase5c_and_phase6_completion():
+    spec = (ROOT / "validation/holdem/v1/SPEC.md").read_text(encoding="utf-8")
+    lines = set(spec.splitlines())
+    status = (
+        "**Status:** binding v1 contract/validation specification. The schema/semantic contract, exact oracle, "
+        "deterministic CPU stream/engine, explicit CUDA engine, deterministic GPU qualification/publication "
+        "checkpoints, and explicit local Python API/CLI are complete. A network service and automatic CUDA "
+        "routing remain unimplemented."
+    )
+    statistical_row = (
+        "| Statistical characterization | predeclared interval checks against exact cases | deterministic "
+        "seed-bank jobs | Phase 5C complete |"
+    )
+    phase6 = (
+        "- **Phase 6 — explicit public API and CLI: COMPLETE.** `solve()` remains CPU-only; `solve_cuda()` and "
+        "`solve-cuda` are explicit CUDA routes with no fallback, bounded strict JSON input, canonical v1 output, "
+        "and closed problem/exit behavior."
+    )
+    expected = {
+        status,
+        statistical_row,
+        phase6,
+        "- [x] Explicit user-facing local Python API and CLI routing are implemented with no fallback.",
+        "- [ ] A network service and automatic CUDA routing remain future work.",
+    }
+    assert expected <= lines
+    authority = next(line for line in lines if line.startswith("The normative authorities are "))
+    assert "[ADR 0004](../../../docs/adr/0004-explicit-cuda-routing-and-cli.md)" in authority
+    assert "explicit local API/CLI routing and bounded command-line behavior" in authority
+    assert "| Statistical characterization | predeclared interval checks against exact cases | " \
+        "deterministic seed-bank jobs | later |" not in lines
+    assert "Later statistical tests use fixed named seeds" not in spec
+    assert "Network service and explicit user-facing routing beyond direct engine selection" not in spec
+
+
 def test_root_exports_exact_phase6_surface_and_remains_cupy_inert(tmp_path):
     expected = {
         "CPUReferenceEngine",
