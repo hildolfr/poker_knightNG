@@ -1,5 +1,6 @@
 import importlib.resources
 import importlib.util
+import os
 from pathlib import Path
 import subprocess
 import sys
@@ -28,11 +29,24 @@ REQUIRED_PYTHON = (
 )
 
 
-def test_root_contract_import_never_loads_cupy_or_cuda_compiler():
-    code = "import poker_knight_ng; import sys; assert 'cupy' not in sys.modules; assert not any('cuda.kernel_wrapper' in x for x in sys.modules); print(poker_knight_ng.__version__)"
-    completed = subprocess.run([sys.executable, "-c", code], check=True, capture_output=True, text=True)
+def test_root_contract_import_never_loads_cupy_or_cuda_compiler(tmp_path):
+    fake_cupy = tmp_path / "cupy"
+    fake_cupy.mkdir()
+    (fake_cupy / "__init__.py").write_text("raise RuntimeError('cupy was imported')\n")
+    code = (
+        "import importlib.util,sys; "
+        "assert importlib.util.find_spec('cupy') is not None; "
+        "import poker_knight_ng; "
+        "assert 'cupy' not in sys.modules; "
+        "assert not any('cuda.kernel_wrapper' in x for x in sys.modules); "
+        "print(poker_knight_ng.__version__)"
+    )
+    environment = os.environ.copy()
+    environment["PYTHONPATH"] = str(tmp_path)
+    completed = subprocess.run(
+        [sys.executable, "-c", code], check=True, capture_output=True, text=True, env=environment,
+    )
     assert completed.stdout.strip()
-    assert importlib.util.find_spec("cupy") is None
     assert importlib.util.find_spec("poker_knight_ng.cuda") is None
 
 
