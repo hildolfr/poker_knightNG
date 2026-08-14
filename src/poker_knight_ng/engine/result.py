@@ -1,5 +1,6 @@
 """Closed conversion from the CPU reference aggregate to the v1 result contract."""
 from typing import Callable
+import re
 
 from ..contract import EquityRequest, EquityResult, canonical_case_hash
 from ..contract.errors import ContractProblem, problem
@@ -34,7 +35,7 @@ def _exact_aggregate_fields(result: MonteCarloResult) -> None:
         raise ValueError("aggregate bin is not an exact uint64")
 
 
-def to_equity_result(result: object, request: object, duration_ns: object) -> EquityResult:
+def to_equity_result(result: object, request: object, duration_ns: object, *, provenance: tuple[str, str, str] | None = None) -> EquityResult:
     """Internal boundary: expose only INTERNAL_ERROR for malformed internal input."""
     try:
         if type(request) is not EquityRequest:
@@ -63,6 +64,17 @@ def to_equity_result(result: object, request: object, duration_ns: object) -> Eq
         units = object.__getattribute__(result, "equity_share_units")
         categories = object.__getattribute__(result, "hero_category_counts")
         ties = sum(bins)
+        if provenance is None:
+            output_provenance = {"engine_build_id": ENGINE_BUILD_ID, "backend_qualification": BACKEND_QUALIFICATION, "device_id": None, "kernel_id": None}
+        else:
+            if type(provenance) is not tuple or len(provenance) != 3 or any(type(value) is not str for value in provenance):
+                raise problem("INTERNAL_ERROR")
+            qualification, device, kernel = provenance
+            if (backend != "cuda" or qualification != "cuda-deterministic-v1"
+                    or re.fullmatch(r"cuda-uuid:[0-9a-f]{32}", device) is None
+                    or re.fullmatch(r"cuda-source-sha256:[0-9a-f]{64}", kernel) is None):
+                raise problem("INTERNAL_ERROR")
+            output_provenance = {"engine_build_id": ENGINE_BUILD_ID, "backend_qualification": qualification, "device_id": device, "kernel_id": kernel}
         raw = {
             "contract_version": "v1", "backend": backend,
             "rng": {"algorithm_id": "poker-knight-ng/philox4x32-10", "algorithm_version": "1"},
@@ -79,7 +91,7 @@ def to_equity_result(result: object, request: object, duration_ns: object) -> Eq
                 "showdown_equity": {"numerator": str(units), "denominator": str(420 * completed)},
             },
             "timing": {"total_duration_ns": str(duration)},
-            "provenance": {"engine_build_id": ENGINE_BUILD_ID, "backend_qualification": BACKEND_QUALIFICATION, "device_id": None, "kernel_id": None},
+            "provenance": output_provenance,
         }
         return EquityResult.parse(raw, request=request)
     except ContractProblem as exc:

@@ -62,6 +62,14 @@ class CudaRuntimeError(RuntimeError):
     """A CUDA runtime, source, or ABI invariant was not met."""
 
 
+class CudaBackendUnavailable(CudaRuntimeError):
+    """CUDA backend qualification or compatibility is unavailable."""
+
+
+class CudaResourceExhausted(CudaRuntimeError):
+    """CUDA admission cannot reserve the bounded required resources."""
+
+
 class CudaRngExhausted(CudaRuntimeError):
     """The deterministic native trial reported a bounded RNG exhaustion."""
 
@@ -202,7 +210,7 @@ def _read_approved_source_snapshot() -> tuple[tuple[Path, bytes], ...]:
         try:
             snapshot[name] = path.read_bytes()
         except OSError as exc:
-            raise CudaRuntimeError(f"approved CUDA source is unreadable: {name}") from exc
+            raise CudaBackendUnavailable(f"approved CUDA source is unreadable: {name}") from exc
 
     seen: set[str] = set()
     ordered: list[str] = []
@@ -211,19 +219,19 @@ def _read_approved_source_snapshot() -> tuple[tuple[Path, bytes], ...]:
         if name in seen:
             return
         if Path(name).name != name or name not in snapshot:
-            raise CudaRuntimeError("CUDA source contains a non-approved local include")
+            raise CudaBackendUnavailable("CUDA source contains a non-approved local include")
         seen.add(name)
         try:
             text = snapshot[name].decode("utf-8")
         except UnicodeDecodeError as exc:
-            raise CudaRuntimeError(f"approved CUDA source is not UTF-8: {name}") from exc
+            raise CudaBackendUnavailable(f"approved CUDA source is not UTF-8: {name}") from exc
         for child in _INCLUDE.findall(text):
             visit(child)
         ordered.append(name)
 
     visit("deterministic_kernels.cu")
     if tuple(ordered) != APPROVED_SOURCE_NAMES:
-        raise CudaRuntimeError("CUDA source closure does not match the approved manifest")
+        raise CudaBackendUnavailable("CUDA source closure does not match the approved manifest")
     return tuple((directory / name, snapshot[name]) for name in APPROVED_SOURCE_NAMES)
 
 
@@ -235,7 +243,7 @@ def _approved_snapshot_digest(snapshot: tuple[tuple[Path, bytes], ...]) -> str:
         digest.update(data)
     actual = digest.hexdigest()
     if actual != APPROVED_SOURCE_SHA256:
-        raise CudaRuntimeError("approved CUDA source digest does not match the pinned manifest")
+        raise CudaBackendUnavailable("approved CUDA source digest does not match the pinned manifest")
     return actual
 
 
@@ -252,13 +260,13 @@ def approved_source_digest() -> str:
 
 def _compiler_environment(cp: Any) -> tuple[str, tuple[str, ...]]:
     if getattr(cp, "__version__", None) != CUPY_VERSION:
-        raise CudaRuntimeError(f"exact CuPy {CUPY_VERSION} is required")
+        raise CudaBackendUnavailable(f"exact CuPy {CUPY_VERSION} is required")
     try:
         architecture = cp.cuda.Device().compute_capability
     except Exception as exc:
-        raise CudaRuntimeError("CUDA device compute capability is unavailable") from exc
+        raise CudaBackendUnavailable("CUDA device compute capability is unavailable") from exc
     if type(architecture) is not str or re.fullmatch(r"[0-9]+", architecture) is None:
-        raise CudaRuntimeError("CUDA compute capability has an unsupported shape")
+        raise CudaBackendUnavailable("CUDA compute capability has an unsupported shape")
     return architecture, ("-std=c++17", f"--gpu-architecture=compute_{architecture}")
 
 
@@ -329,10 +337,10 @@ def _nvrtc_source_snapshot_with_digest() -> tuple[str, str]:
         try:
             text = snapshot[name]
         except KeyError as exc:
-            raise CudaRuntimeError("CUDA source closure changed during admission") from exc
+            raise CudaBackendUnavailable("CUDA source closure changed during admission") from exc
         system_includes = set(_SYSTEM_INCLUDE.findall(text))
         if system_includes - {"cstdint"}:
-            raise CudaRuntimeError("CUDA source contains an unsupported system include")
+            raise CudaBackendUnavailable("CUDA source contains an unsupported system include")
         text = _SYSTEM_INCLUDE.sub("", text)
         return _INCLUDE.sub(lambda match: inline(match.group(1)), text)
 
@@ -371,10 +379,10 @@ class CupyDeterministicRuntime:
             try:
                 import cupy  # type: ignore[import-not-found]
             except Exception as exc:
-                raise CudaRuntimeError("CuPy is unavailable") from exc
+                raise CudaBackendUnavailable("CuPy is unavailable") from exc
             self._cp = cupy
         if getattr(self._cp, "__version__", None) != CUPY_VERSION:
-            raise CudaRuntimeError(f"exact CuPy {CUPY_VERSION} is required")
+            raise CudaBackendUnavailable(f"exact CuPy {CUPY_VERSION} is required")
         return self._cp
 
     def _compile(self) -> Any:
@@ -398,7 +406,7 @@ class CupyDeterministicRuntime:
             for name in names:
                 module.get_function(name)
         except Exception as exc:
-            raise CudaRuntimeError("failed to compile source-attested deterministic CUDA source") from exc
+            raise CudaBackendUnavailable("failed to compile source-attested deterministic CUDA source") from exc
         _MODULE_CACHE[cache_key] = module
         self._source_digest = source_digest
         return module
@@ -413,14 +421,15 @@ class CupyDeterministicRuntime:
             cp.cuda.runtime.deviceSynchronize()
             actual = tuple(int(x) for x in cp.asnumpy(output))
         except Exception as exc:
-            raise CudaRuntimeError("failed to probe CUDA aggregate ABI") from exc
+            raise CudaBackendUnavailable("failed to probe CUDA aggregate ABI") from exc
         if actual != _ABI_EXPECTED:
-            raise CudaRuntimeError("CUDA aggregate ABI does not match the host layout")
+            raise CudaBackendUnavailable("CUDA aggregate ABI does not match the host layout")
         self._abi_verified = True
 
     def _kernels(self) -> tuple[Any, Any]:
         if self._module is None:
             self._module = self._compile()
+        if not self._abi_verified:
             self._probe_abi()
         return (self._module.get_function("pkng_simulate_block_partials_kernel"), self._module.get_function("pkng_reduce_block_partials_kernel"))
 
@@ -428,7 +437,7 @@ class CupyDeterministicRuntime:
         free, _total = self._cupy().cuda.runtime.memGetInfo()
         free = int(free)
         if free < MIN_FREE_VRAM_BYTES:
-            raise CudaRuntimeError("CUDA admission requires at least 2 GiB free VRAM")
+            raise CudaResourceExhausted("CUDA admission requires at least 2 GiB free VRAM")
         allowed = min(
             free,
             MAX_ALLOCATION_BUDGET_BYTES,
@@ -438,8 +447,31 @@ class CupyDeterministicRuntime:
         )
         capacity = (allowed - BATCH_OVERHEAD_BYTES - AGGREGATE_BYTES) // AGGREGATE_BYTES
         if capacity < 1:
-            raise CudaRuntimeError("insufficient VRAM for one deterministic partial")
+            raise CudaResourceExhausted("insufficient VRAM for one deterministic partial")
         return min(self.batch_blocks, capacity)
+
+    def provenance(self) -> tuple[str, str]:
+        """Closed device/source identifiers, only after kernel and ABI qualification."""
+        self._kernels()
+        if not self._abi_verified or self._source_digest != APPROVED_SOURCE_SHA256:
+            raise CudaBackendUnavailable("CUDA qualification is incomplete")
+        try:
+            cp = self._cupy()
+            device = cp.cuda.Device()
+            properties = cp.cuda.runtime.getDeviceProperties(device.id)
+            compute_capability = device.compute_capability
+        except Exception as exc:
+            raise CudaBackendUnavailable("CUDA device properties are unavailable") from exc
+        if type(properties) is not dict:
+            raise CudaBackendUnavailable("CUDA device properties have invalid shape")
+        uuid, major, minor = properties.get("uuid"), properties.get("major"), properties.get("minor")
+        if (type(uuid) is not bytes or len(uuid) != 16
+                or type(major) is not int or not 1 <= major <= 99
+                or type(minor) is not int or not 0 <= minor <= 9):
+            raise CudaBackendUnavailable("CUDA device properties are incompatible")
+        if type(compute_capability) is not str or compute_capability != f"{major}{minor}":
+            raise CudaBackendUnavailable("CUDA device properties are incompatible")
+        return f"cuda-uuid:{uuid.hex()}", f"cuda-source-sha256:{self._source_digest}"
 
     @staticmethod
     def _validate_run_arguments(hero: tuple[int, int], board: tuple[int, ...], opponents: int, key: tuple[int, int], first_simulation_id: int, count: int) -> None:
