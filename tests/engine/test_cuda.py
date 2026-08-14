@@ -117,7 +117,7 @@ def test_runtime_provenance_uses_exact_production_shaped_cupy_properties():
     runtime = _qualified_runtime({"uuid": bytes.fromhex("ab" * 16), "major": 12, "minor": 0})
     assert runtime.provenance() == (
         "cuda-uuid:" + "ab" * 16,
-        "cuda-source-sha256:b3bc54c703bef1fb480462a41c5535eaa9ff56f82d5c34592d845553a12fdab1",
+        "cuda-source-sha256:d011e0f5c4db4d12fcb5240b5996f0911af7f153c7942f16772f871917ca5263",
     )
 
 

@@ -17,6 +17,10 @@ constexpr std::uint64_t NO_FAILURE_SIMULATION_ID = ~std::uint64_t{0};
 struct Unsigned128 { std::uint64_t lo = 0; std::uint64_t hi = 0; };
 struct AggregateResult {
   AggregateStatus status = AggregateStatus::OK;
+  // Make every byte in the fixed 192-byte host/device wire image a language-level
+  // zero-initialized member.  Implicit padding is indeterminate and initcheck quite
+  // correctly rejects copying it to the host even though public field offsets match.
+  std::uint8_t reserved_after_status[7]{};
   std::uint64_t completed_trials = 0;
   std::uint64_t unique_wins = 0;
   std::uint64_t tie_by_other_winners[6]{};
@@ -26,6 +30,7 @@ struct AggregateResult {
   Unsigned128 rejection_count{};
   std::uint64_t failure_simulation_id = NO_FAILURE_SIMULATION_ID;
   std::uint32_t failure_draw_slot = NO_FAILURE_DRAW_SLOT;
+  std::uint8_t reserved_tail[4]{};
 };
 
 PKNG_HD constexpr bool known_aggregate_status(const AggregateStatus status) {

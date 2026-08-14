@@ -14,6 +14,7 @@ INCLUDE = ROOT / "src" / "poker_knight_ng" / "cuda-sources"
 SEED_BANK = ROOT / "validation" / "holdem" / "v1" / "rng_seed_bank.json"
 
 HARNESS = r'''
+#include <cstddef>
 #include <cstdint>
 #include <iostream>
 #include <limits>
@@ -30,6 +31,11 @@ static void out(const AggregateResult& a) {
 int main() {
  static_assert(std::is_standard_layout<AggregateResult>::value, "stable layout");
  static_assert(std::is_trivially_copyable<AggregateResult>::value, "partial safe");
+ static_assert(sizeof(AggregateResult) == 192, "stable wire size");
+ static_assert(offsetof(AggregateResult, reserved_after_status) == 1, "explicit status padding");
+ static_assert(sizeof(AggregateResult::reserved_after_status) == 7, "status padding width");
+ static_assert(offsetof(AggregateResult, reserved_tail) == 188, "explicit tail padding");
+ static_assert(sizeof(AggregateResult::reserved_tail) == 4, "tail padding width");
  static_assert(sizeof(decltype(AggregateResult::completed_trials)) == 8, "u64");
  static_assert(sizeof(decltype(AggregateResult::rejection_count.lo)) == 8, "u128 lanes");
  static_assert(sizeof(decltype(AggregateResult::failure_draw_slot)) == 4, "slot");
