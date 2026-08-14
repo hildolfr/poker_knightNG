@@ -12,6 +12,11 @@ from pathlib import Path
 import pytest
 
 ROOT = Path(__file__).resolve().parents[2]
+_candidate_spec = importlib.util.spec_from_file_location("_candidate_lifecycle_phase5b", ROOT / "tools/candidate_qualification_lifecycle.py")
+assert _candidate_spec is not None and _candidate_spec.loader is not None
+_candidate = importlib.util.module_from_spec(_candidate_spec)
+_candidate_spec.loader.exec_module(_candidate)
+CANDIDATE_CHECKOUT = _candidate.candidate_authority_pending(ROOT)
 TOOL = ROOT / "tools" / "verify_cuda_release_qualification.py"
 RECORD = ROOT / "validation" / "holdem" / "v1" / "cuda_release_qualification.json"
 
@@ -24,6 +29,7 @@ def load_tool():
     return module
 
 
+@pytest.mark.skipif(CANDIDATE_CHECKOUT, reason="candidate awaits Phase 5B authority closeout")
 def test_committed_cuda_qualification_record_verifies_strictly() -> None:
     assert TOOL.is_file() and RECORD.is_file()
     tool = load_tool()

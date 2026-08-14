@@ -281,6 +281,37 @@ predeclared steady p50 metric without regressing the corresponding predeclared
 p95 metric. Any changed workload, identity, or uncontended condition creates a
 new baseline rather than proof of improvement.
 
+### Preregistered direct seven-card evaluator candidate
+
+This section defines an unqualified source candidate. Its source checkpoint may
+be published solely to provide the immutable pre-GPU identity required by the
+Phase 5 qualification workflow; the published Phase 5 authorities continue to
+bind the prior implementation and are expected to reject the candidate checkout
+until a later evidence closeout replaces them. Publication of the source
+checkpoint is not release qualification, benchmark admission, or acceptance.
+For this exact candidate digest, routine pytest skips only the five assertions
+that require the historical Phase 5 authorities to match the live checkout; the
+standalone Phase 5B and Phase 5C verifiers must still fail until closeout, while
+the published baseline's historical public projection remains verifiable.
+
+The published baseline selects the simulation stage as the only optimization
+target: at 1,000,000 trials it accounts for 94.65% of the summed instrumented
+stage duration, while the current evaluator scores all 21 five-card subsets of
+every seven-card hand. Before observing candidate GPU timings, the bounded
+candidate is fixed as a direct rank-histogram and per-suit-mask seven-card
+scorer that preserves the exact six-byte `HandScore` ordering and retains the
+combinatorial scorer as its independent oracle.
+
+The candidate is accepted only if all exact CPU, CUDA, sanitizer, geometry, and
+statistical qualification gates pass, a fresh run of this unchanged protocol
+is admitted on the same device/environment, the geometric mean of steady p50
+latency across the twelve 1,000,000-trial cells is at least 10% lower than the
+published baseline, and no one of those twelve cells regresses at steady p50 or
+p95. The separately instrumented simulation-stage totals must also decrease in
+aggregate, but they are single characterization observations and must not be
+misrepresented as percentiles. Failure of any gate rejects the candidate and
+retains the published baseline implementation.
+
 ## 9. Reproduction status and command forms
 
 The implemented controller and its six workers remain private tools. Do not

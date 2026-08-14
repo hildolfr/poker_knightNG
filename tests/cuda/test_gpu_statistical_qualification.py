@@ -126,7 +126,7 @@ def test_parent_runs_full_seed_verifier_before_gpu_admission(tmp_path: Path) -> 
         def gpu_admission(self, root):
             calls.append("admission"); return {"compute_capability": "12.0"}
 
-    result = tool.run_pre_admission(tmp_path, "0" * 40, "revival/phase-5c-statistical-validation", Base())
+    result = tool.run_pre_admission(tmp_path, "0" * 40, tool.EXPECTED_BRANCH, Base())
     assert result == (manifest, bank, {"compute_capability": "12.0"})
     assert calls[0] == "checkout"
     assert calls[1] == (
@@ -145,7 +145,7 @@ def test_seed_verifier_failure_or_interruption_never_reaches_gpu(tmp_path: Path)
             def verify_seed_manifest(self, root): calls.append("manifest")
             def gpu_admission(self, root): calls.append("admission")
         with pytest.raises(type(failure)):
-            tool.run_pre_admission(tmp_path, "0" * 40, "revival/phase-5c-statistical-validation", Base())
+            tool.run_pre_admission(tmp_path, "0" * 40, tool.EXPECTED_BRANCH, Base())
         assert calls == ["verify"]
 
 

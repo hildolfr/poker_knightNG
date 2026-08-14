@@ -39,7 +39,7 @@ def test_source_manifest_hashes_exact_pinned_local_source_closure(monkeypatch: p
     expected_digest = hashlib.sha256(
         b"".join(path.name.encode("ascii") + b"\0" + path.read_bytes() for path, _ in manifest)
     ).hexdigest()
-    assert runtime.APPROVED_SOURCE_SHA256 == "d011e0f5c4db4d12fcb5240b5996f0911af7f153c7942f16772f871917ca5263"
+    assert runtime.APPROVED_SOURCE_SHA256 == "8da8349bed65e782a18d29f83de884341b3838f40c1e83904d07860c2c4ade5a"
     assert runtime.approved_source_digest() == expected_digest == runtime.APPROVED_SOURCE_SHA256
 
     monkeypatch.setattr(runtime, "APPROVED_SOURCE_SHA256", "0" * 64)

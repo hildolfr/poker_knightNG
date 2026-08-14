@@ -73,7 +73,7 @@ def _passed() -> dict[str, object]:
     return {
         "format_version": "1", "run_id": "phase5c-example", "status": "passed", "error_codes": [],
         "source": {
-            "git_sha": "0" * 40, "branch": "revival/phase-5c-statistical-validation", "clean": "true",
+            "git_sha": "0" * 40, "branch": "revival/phase-6c-optimize-evaluator", "clean": "true",
             "cuda_source_sha256": HEX64, "harness_source_sha256": HEX64,
             "phase5c_tool_sha256": HEX64, "seed_generator_sha256": HEX64,
         },

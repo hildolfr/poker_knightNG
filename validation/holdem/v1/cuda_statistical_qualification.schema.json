@@ -141,7 +141,7 @@
           "required": ["git_sha", "branch", "clean", "cuda_source_sha256", "harness_source_sha256", "phase5c_tool_sha256", "seed_generator_sha256"],
           "properties": {
             "git_sha": {"$ref": "#/$defs/git_sha"},
-            "branch": {"const": "revival/phase-5c-statistical-validation"}, "clean": {"const": "true"},
+            "branch": {"const": "revival/phase-6c-optimize-evaluator"}, "clean": {"const": "true"},
             "cuda_source_sha256": {"$ref": "#/$defs/digest"},
             "harness_source_sha256": {"$ref": "#/$defs/digest"},
             "phase5c_tool_sha256": {"$ref": "#/$defs/digest"},

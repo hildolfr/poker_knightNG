@@ -10,7 +10,12 @@ import sys
 import pytest
 
 
-ROOT = Path(__file__).parents[2]
+ROOT = Path(__file__).resolve().parents[2]
+_candidate_spec = importlib.util.spec_from_file_location("_candidate_lifecycle_benchmark", ROOT / "tools/candidate_qualification_lifecycle.py")
+assert _candidate_spec is not None and _candidate_spec.loader is not None
+_candidate = importlib.util.module_from_spec(_candidate_spec)
+_candidate_spec.loader.exec_module(_candidate)
+CANDIDATE_CHECKOUT = _candidate.candidate_authority_pending(ROOT)
 SCHEMA_TEST = ROOT / "tests/benchmarks/test_benchmark_evidence_schema.py"
 VERIFIER = ROOT / "tools/verify_cuda_benchmark_evidence.py"
 SCHEMA = ROOT / "validation/holdem/v1/cuda_benchmark_private.schema.json"
@@ -40,6 +45,7 @@ def test_committed_scenario_manifest_is_canonical_and_complete():
     assert SCENARIO_MANIFEST.read_bytes() == verifier._canonical(expected)
 
 
+@pytest.mark.skipif(CANDIDATE_CHECKOUT, reason="candidate awaits Phase 5 authority closeout")
 def test_published_phase5_qualification_authorities_verify_against_checkout():
     verifier = load_verifier()
     verifier._verify_qualification_authorities(ROOT)

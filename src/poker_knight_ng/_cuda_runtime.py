@@ -45,7 +45,7 @@ APPROVED_SOURCE_NAMES: Final = (
     "reduce.cuh",
     "deterministic_kernels.cu",
 )
-APPROVED_SOURCE_SHA256: Final = "d011e0f5c4db4d12fcb5240b5996f0911af7f153c7942f16772f871917ca5263"
+APPROVED_SOURCE_SHA256: Final = "8da8349bed65e782a18d29f83de884341b3838f40c1e83904d07860c2c4ade5a"
 _NVRTC_PRELUDE: Final = r'''
 namespace std {
 using uint8_t = unsigned char;
