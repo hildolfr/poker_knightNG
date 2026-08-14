@@ -1,0 +1,238 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://poker-knight-ng.invalid/validation/holdem/v1/cuda-statistical-qualification.schema.json",
+  "title": "Poker Knight NG CUDA statistical qualification evidence v1",
+  "oneOf": [
+    {"$ref": "#/$defs/passed"},
+    {"$ref": "#/$defs/failed"}
+  ],
+  "$defs": {
+    "counter": {"type": "string", "pattern": "^(0|[1-9][0-9]*)$"},
+    "positive": {"type": "string", "pattern": "^[1-9][0-9]*$"},
+    "digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "git_sha": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    "unit_decimal": {"type": "string", "pattern": "^(0|1|0\\.[0-9]+)$"},
+    "file": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["basename", "sha256", "size"],
+      "properties": {
+        "basename": {"type": "string", "pattern": "^[A-Za-z0-9_.-]+$", "maxLength": 128},
+        "sha256": {"$ref": "#/$defs/digest"},
+        "size": {"$ref": "#/$defs/positive"}
+      }
+    },
+    "ties": {
+      "type": "object", "additionalProperties": false,
+      "required": ["1", "2", "3", "4", "5", "6"],
+      "properties": {
+        "1": {"$ref": "#/$defs/counter"}, "2": {"$ref": "#/$defs/counter"},
+        "3": {"$ref": "#/$defs/counter"}, "4": {"$ref": "#/$defs/counter"},
+        "5": {"$ref": "#/$defs/counter"}, "6": {"$ref": "#/$defs/counter"}
+      }
+    },
+    "categories": {
+      "type": "object", "additionalProperties": false,
+      "required": ["high_card", "one_pair", "two_pair", "three_of_a_kind", "straight", "flush", "full_house", "four_of_a_kind", "straight_flush"],
+      "properties": {
+        "high_card": {"$ref": "#/$defs/counter"}, "one_pair": {"$ref": "#/$defs/counter"},
+        "two_pair": {"$ref": "#/$defs/counter"}, "three_of_a_kind": {"$ref": "#/$defs/counter"},
+        "straight": {"$ref": "#/$defs/counter"}, "flush": {"$ref": "#/$defs/counter"},
+        "full_house": {"$ref": "#/$defs/counter"}, "four_of_a_kind": {"$ref": "#/$defs/counter"},
+        "straight_flush": {"$ref": "#/$defs/counter"}
+      }
+    },
+    "aggregate": {
+      "type": "object", "additionalProperties": false,
+      "required": ["completed_trials", "unique_wins", "tie_by_other_winners", "losses", "equity_share_units", "hero_category_counts", "rejection_count"],
+      "properties": {
+        "completed_trials": {"$ref": "#/$defs/positive"},
+        "unique_wins": {"$ref": "#/$defs/counter"},
+        "tie_by_other_winners": {"$ref": "#/$defs/ties"},
+        "losses": {"$ref": "#/$defs/counter"},
+        "equity_share_units": {"$ref": "#/$defs/counter"},
+        "hero_category_counts": {"$ref": "#/$defs/categories"},
+        "rejection_count": {"$ref": "#/$defs/counter"}
+      }
+    },
+    "batch": {
+      "type": "object", "additionalProperties": false,
+      "required": ["ordinal", "first_simulation_id", "trials", "partial_blocks", "simulate_grid", "simulate_block", "reduce_grid", "reduce_block"],
+      "properties": {
+        "ordinal": {"$ref": "#/$defs/counter"},
+        "first_simulation_id": {"$ref": "#/$defs/counter"},
+        "trials": {"$ref": "#/$defs/positive"},
+        "partial_blocks": {"$ref": "#/$defs/positive"},
+        "simulate_grid": {"type": "array", "prefixItems": [{"$ref": "#/$defs/positive"}], "items": false, "minItems": 1, "maxItems": 1},
+        "simulate_block": {"type": "array", "prefixItems": [{"const": "128"}], "items": false, "minItems": 1, "maxItems": 1},
+        "reduce_grid": {"type": "array", "prefixItems": [{"const": "1"}], "items": false, "minItems": 1, "maxItems": 1},
+        "reduce_block": {"type": "array", "prefixItems": [{"const": "128"}], "items": false, "minItems": 1, "maxItems": 1}
+      }
+    },
+    "wilson_event": {
+      "type": "object", "additionalProperties": false,
+      "required": ["successes", "trials", "lower", "upper", "population_numerator", "population_denominator", "status"],
+      "properties": {
+        "successes": {"$ref": "#/$defs/counter"}, "trials": {"$ref": "#/$defs/positive"},
+        "lower": {"$ref": "#/$defs/unit_decimal"}, "upper": {"$ref": "#/$defs/unit_decimal"},
+        "population_numerator": {"$ref": "#/$defs/counter"},
+        "population_denominator": {"$ref": "#/$defs/positive"}, "status": {"const": "passed"}
+      }
+    },
+    "statistics": {
+      "type": "object", "additionalProperties": false, "required": ["wilson", "hoeffding"],
+      "properties": {
+        "wilson": {
+          "type": "object", "additionalProperties": false,
+          "required": ["unique_win", "tie", "loss"],
+          "properties": {
+            "unique_win": {"$ref": "#/$defs/wilson_event"},
+            "tie": {"$ref": "#/$defs/wilson_event"},
+            "loss": {"$ref": "#/$defs/wilson_event"}
+          }
+        },
+        "hoeffding": {
+          "type": "object", "additionalProperties": false,
+          "required": ["observed_equity", "exact_equity", "radius", "observed_units", "trials", "population_exact_units", "population_N", "status"],
+          "properties": {
+            "observed_equity": {"$ref": "#/$defs/unit_decimal"},
+            "exact_equity": {"$ref": "#/$defs/unit_decimal"},
+            "radius": {"$ref": "#/$defs/unit_decimal"},
+            "observed_units": {"$ref": "#/$defs/counter"},
+            "trials": {"$ref": "#/$defs/positive"},
+            "population_exact_units": {"$ref": "#/$defs/counter"},
+            "population_N": {"$ref": "#/$defs/positive"},
+            "status": {"const": "passed"}
+          }
+        }
+      }
+    },
+    "geometry": {
+      "type": "object", "additionalProperties": false,
+      "required": ["config", "actual_capacity", "batches", "cpu_aggregate", "cuda_aggregate", "frozen_aggregate", "statistics", "duration_ns"],
+      "properties": {
+        "config": {
+          "type": "object", "additionalProperties": false,
+          "required": ["batch_blocks", "vram_budget_bytes"],
+          "properties": {
+            "batch_blocks": {"$ref": "#/$defs/positive"},
+            "vram_budget_bytes": {"oneOf": [{"const": "default"}, {"$ref": "#/$defs/positive"}]}
+          }
+        },
+        "actual_capacity": {"$ref": "#/$defs/positive"},
+        "batches": {"type": "array", "items": {"$ref": "#/$defs/batch"}, "minItems": 1, "maxItems": 16},
+        "cpu_aggregate": {"$ref": "#/$defs/aggregate"},
+        "cuda_aggregate": {"$ref": "#/$defs/aggregate"},
+        "frozen_aggregate": {"$ref": "#/$defs/aggregate"},
+        "statistics": {"$ref": "#/$defs/statistics"},
+        "duration_ns": {"$ref": "#/$defs/positive"}
+      }
+    },
+    "passed": {
+      "type": "object", "additionalProperties": false,
+      "required": ["format_version", "run_id", "status", "error_codes", "source", "artifacts", "gates", "statistical_case", "preregistration", "geometries", "provenance", "environment"],
+      "properties": {
+        "format_version": {"const": "1"},
+        "run_id": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$"},
+        "status": {"const": "passed"},
+        "error_codes": {"type": "array", "maxItems": 0},
+        "source": {
+          "type": "object", "additionalProperties": false,
+          "required": ["git_sha", "branch", "clean", "cuda_source_sha256", "harness_source_sha256", "phase5c_tool_sha256", "seed_generator_sha256"],
+          "properties": {
+            "git_sha": {"$ref": "#/$defs/git_sha"},
+            "branch": {"const": "revival/phase-5c-statistical-validation"}, "clean": {"const": "true"},
+            "cuda_source_sha256": {"$ref": "#/$defs/digest"},
+            "harness_source_sha256": {"$ref": "#/$defs/digest"},
+            "phase5c_tool_sha256": {"$ref": "#/$defs/digest"},
+            "seed_generator_sha256": {"$ref": "#/$defs/digest"}
+          }
+        },
+        "artifacts": {
+          "type": "object", "additionalProperties": false,
+          "required": ["seed_bank", "seed_manifest", "wheel", "sdist"],
+          "properties": {
+            "seed_bank": {"$ref": "#/$defs/file"}, "seed_manifest": {"$ref": "#/$defs/file"},
+            "wheel": {"$ref": "#/$defs/file"}, "sdist": {"$ref": "#/$defs/file"}
+          }
+        },
+        "gates": {
+          "type": "object", "additionalProperties": false,
+          "required": ["checkout", "seed_bank_verify", "admission", "worker", "geometry", "exact_aggregate", "statistics"],
+          "properties": {
+            "checkout": {"const": "passed"}, "seed_bank_verify": {"const": "passed"},
+            "admission": {"const": "passed"}, "worker": {"const": "passed"},
+            "geometry": {"const": "passed"}, "exact_aggregate": {"const": "passed"},
+            "statistics": {"const": "passed"}
+          }
+        },
+        "statistical_case": {
+          "type": "object", "additionalProperties": false,
+          "required": ["id", "seed", "requested_trials", "hero_card_ids", "board_card_ids", "opponent_count", "canonical_case_hash_hex"],
+          "properties": {
+            "id": {"const": "river-high-card-wtl-2000"}, "seed": {"const": "0x0000000000000001"},
+            "requested_trials": {"const": "2000"},
+            "hero_card_ids": {"const": ["12", "37"]},
+            "board_card_ids": {"const": ["0", "18", "33", "47", "48"]},
+            "opponent_count": {"const": "1"}, "canonical_case_hash_hex": {"$ref": "#/$defs/digest"}
+          }
+        },
+        "preregistration": {
+          "type": "object", "additionalProperties": false,
+          "required": ["interpretation", "per_gate_alpha", "wilson_z", "hoeffding_formula", "maximum_union_bound"],
+          "properties": {
+            "interpretation": {"const": "fixed_stream_calibration_not_iid_coverage_guarantee"},
+            "per_gate_alpha": {"const": "0.000001"}, "wilson_z": {"const": "4.891638475698591"},
+            "hoeffding_formula": {"const": "sqrt(log(2/alpha)/(2*N))"},
+            "maximum_union_bound": {"const": "0.000016"}
+          }
+        },
+        "geometries": {
+          "type": "object", "additionalProperties": false,
+          "required": ["capacity_1", "budget_capacity_3", "capacity_7", "capacity_256"],
+          "properties": {
+            "capacity_1": {"$ref": "#/$defs/geometry"},
+            "budget_capacity_3": {"$ref": "#/$defs/geometry"},
+            "capacity_7": {"$ref": "#/$defs/geometry"},
+            "capacity_256": {"$ref": "#/$defs/geometry"}
+          }
+        },
+        "provenance": {
+          "type": "object", "additionalProperties": false,
+          "required": ["qualification", "device_id", "kernel_id"],
+          "properties": {
+            "qualification": {"const": "cuda-statistical-v1"},
+            "device_id": {"type": "string", "pattern": "^cuda-uuid:[0-9a-f]{32}$"},
+            "kernel_id": {"type": "string", "pattern": "^cuda-source-sha256:[0-9a-f]{64}$"}
+          }
+        },
+        "environment": {
+          "type": "object", "additionalProperties": false,
+          "required": ["python_version", "cupy_version", "cuda_driver_version", "cuda_runtime_version", "compute_capability", "memory_free_before_bytes", "memory_free_after_bytes"],
+          "properties": {
+            "python_version": {"type": "string", "pattern": "^3\\.13\\.[0-9]+$"},
+            "cupy_version": {"const": "14.1.1"},
+            "cuda_driver_version": {"$ref": "#/$defs/positive"},
+            "cuda_runtime_version": {"$ref": "#/$defs/positive"},
+            "compute_capability": {"type": "string", "pattern": "^[0-9]+\\.[0-9]+$"},
+            "memory_free_before_bytes": {"$ref": "#/$defs/positive"},
+            "memory_free_after_bytes": {"$ref": "#/$defs/positive"}
+          }
+        }
+      }
+    },
+    "failed": {
+      "type": "object", "additionalProperties": false,
+      "required": ["format_version", "run_id", "status", "error_codes"],
+      "properties": {
+        "format_version": {"const": "1"},
+        "run_id": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$"},
+        "status": {"const": "failed"},
+        "error_codes": {
+          "type": "array", "minItems": 1, "maxItems": 1,
+          "items": {"enum": ["ADMISSION", "ARTIFACT", "CHECKOUT", "ENVIRONMENT", "GEOMETRY", "INTERNAL", "MANIFEST", "OUTPUT", "SCHEMA", "SOURCE", "STATISTICS", "SUBPROCESS", "VERIFY", "WORKER"]}
+        }
+      }
+    }
+  }
+}

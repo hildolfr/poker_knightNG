@@ -4,6 +4,7 @@ import importlib.util
 import json
 from copy import deepcopy
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -121,8 +122,11 @@ def test_bad_authority_digest_is_rejected():
 def test_verify_invokes_event_specific_wilson_gate(monkeypatch, event):
     g = _g(); real = g._verify_statistics
     def fail(row, result, population):
-        broken = deepcopy(result); broken[{"unique_win":"unique_wins", "loss":"losses"}.get(event, "unique_wins")] = "0"
-        if event == "tie": broken["tie_by_other_winners"] = {str(i): "0" for i in range(1, 7)}
+        broken = deepcopy(result)
+        if event == "tie":
+            broken["tie_by_other_winners"] = {"1": broken["completed_trials"], **{str(i): "0" for i in range(2, 7)}}
+        else:
+            broken[{"unique_win":"unique_wins", "loss":"losses"}[event]] = "0"
         return real(row, broken, population)
     monkeypatch.setattr(g, "_verify_statistics", fail)
     with pytest.raises(g.SeedBankError, match=f"Wilson {event} interval failed"): g.verify(ROOT)
@@ -138,5 +142,48 @@ def test_verify_invokes_bounded_mean_gate(monkeypatch):
 
 def test_statistics_pass_and_reports_wilson_endpoints():
     g = _g(); bank = _bank(g); row = bank["statistical_vectors"][0]; g.verify(ROOT)
-    endpoints = [g._wilson_interval(int(x["numerator"]), int(x["denominator"]), __import__("decimal").Decimal(row["confidence"]["z"])) for x in row["estimands"].values()]
-    assert all(lo < hi for lo, hi in endpoints)
+    expected = row["expected"]
+    observed = {
+        "unique_win": int(expected["unique_wins"]),
+        "tie": sum(map(int, expected["tie_by_other_winners"].values())),
+        "loss": int(expected["losses"]),
+    }
+    total = int(expected["completed_trials"])
+    z = __import__("decimal").Decimal(row["confidence"]["z"])
+    for name, estimand in row["estimands"].items():
+        lo, hi = g._wilson_interval(observed[name], total, z)
+        exact = __import__("decimal").Decimal(estimand["numerator"]) / __import__("decimal").Decimal(estimand["denominator"])
+        assert lo < hi and lo <= exact <= hi
+
+
+def test_wilson_interval_is_built_from_observation_and_must_cover_population() -> None:
+    g = _g()
+    row = {
+        "confidence": {"z": "4.891638475698591"},
+        "estimands": {
+            "unique_win": {"numerator": "500", "denominator": "1000"},
+            "tie": {"numerator": "0", "denominator": "1000"},
+            "loss": {"numerator": "500", "denominator": "1000"},
+        },
+        "bounded_mean_equity": {
+            "population_N": "1000",
+            "population_exact_units": "210000",
+            "two_sided_alpha": "0.000001",
+        },
+    }
+    result = {
+        "completed_trials": "2000",
+        "unique_wins": "1140",
+        "tie_by_other_winners": {str(index): "0" for index in range(1, 7)},
+        "losses": "860",
+        "equity_share_units": "420000",
+    }
+    population = SimpleNamespace(
+        completed_trials=1000,
+        unique_wins=500,
+        tie_by_other_winners=(0, 0, 0, 0, 0, 0),
+        losses=500,
+        equity_share_units=210000,
+    )
+    with pytest.raises(g.SeedBankError, match="Wilson unique_win interval failed"):
+        g._verify_statistics(row, result, population)

@@ -233,10 +233,11 @@ def _verify_statistics(row: dict[str, Any], result: dict[str, Any], population: 
                    for name, value in expected_estimands.items())):
         raise SeedBankError("statistical population metadata mismatch")
     observed={"unique_win":int(result["unique_wins"]),"tie":sum(map(int,result["tie_by_other_winners"].values())),"loss":int(result["losses"])}
+    observed_total=int(result["completed_trials"])
     for name, estimand in row["estimands"].items():
-        lower, upper = _wilson_interval(int(estimand["numerator"]), int(estimand["denominator"]), Decimal(row["confidence"]["z"]))
-        proportion=Decimal(observed[name])/Decimal(result["completed_trials"])
-        if not lower <= proportion <= upper: raise SeedBankError(f"Wilson {name} interval failed")
+        lower, upper = _wilson_interval(observed[name], observed_total, Decimal(row["confidence"]["z"]))
+        population_proportion=Decimal(estimand["numerator"])/Decimal(estimand["denominator"])
+        if not lower <= population_proportion <= upper: raise SeedBankError(f"Wilson {name} interval failed")
     alpha=Decimal(row["bounded_mean_equity"]["two_sided_alpha"]); n=Decimal(result["completed_trials"]); radius=((Decimal(2)/alpha).ln()/(2*n)).sqrt(); observed_equity=Decimal(result["equity_share_units"])/(420*n); exact=Decimal(population.equity_share_units)/(420*Decimal(population.completed_trials))
     if abs(observed_equity-exact)>radius: raise SeedBankError("bounded mean equity interval failed")
 

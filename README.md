@@ -38,6 +38,8 @@ The qualified source checkpoint is `c2b3eb96413d17194a85144491c71539a4818452`. I
 
 The compact public record is `validation/holdem/v1/cuda_release_qualification.json`; verify it with `tools/verify_cuda_release_qualification.py`. The record binds the source closure, qualification tool, seed authority, lockfile, wheel/sdist/JUnit/sanitizer hashes, and the private canonical evidence hash without publishing host paths, process inventories, or raw device names.
 
+The Phase 5C statistical harness and evidence schema are preregistered, but no Phase 5C GPU pass is claimed yet. See `validation/holdem/v1/STATISTICAL_QUALIFICATION.md`.
+
 CUDA result provenance is restricted to `cuda-uuid:<UUID.hex()>` and `cuda-source-sha256:<approved digest>`. Host-side validation, canonical case hashing, and Philox key derivation remain authoritative.
 
 ## Scope

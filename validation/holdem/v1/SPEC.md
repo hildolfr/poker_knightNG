@@ -35,6 +35,7 @@ The committed Phase 2 fixture materials are:
 - **Phase 4 — explicit CUDA engine: COMPLETE.** CUDA remains explicitly selected and never silently substituted.
 - **Phase 5A — deterministic GPU qualification harness: COMPLETE.**
 - **Phase 5B — qualification publication: COMPLETE.** The source checkpoint is `c2b3eb96413d17194a85144491c71539a4818452`; the later publication checkpoint does not replace that source identity.
+- **Phase 5C-A — CUDA statistical qualification harness: COMPLETE.** The evidence schema, fixed geometry plans, corrected observed-sample Wilson direction, Hoeffding gate, exact aggregate equality, and single-attempt worker/orchestrator are frozen. Live GPU execution and any public Phase 5C pass record remain pending and are not implied by this status.
 
 Structural schema validity is necessary but never proves semantic validity. Exact oracle comparison is not a substitute for deterministic replay, and statistical agreement never waives an exact invariant.
 
@@ -184,7 +185,7 @@ Later statistical tests use fixed named seeds and trial counts from the committe
 
 Every exact row fixes the canonical bytes/hash, seed, topology, requested trial count, and every authoritative integer counter. Verification recomputes the bytes/hash and supplies that exact hash as `replay_case_hash`; a one-bit mutation fails before a deal starts. Publication stages fsync'd files and rolls back replaced destinations if a later replacement fails; it is recoverable bundle atomicity, rather than an unsupported claim of filesystem-wide crash atomicity.
 
-The named statistical row is also replayed exactly as a regression guard, then checked against its preregistered estimands using a fixed two-sided Wilson score interval (`alpha=0.000001`, fixed `z=4.891638475698591`). The test never adapts trials, tolerance, seeds, or interval after execution. W/T/L are separately bounded Bernoulli events; pot-share equity is separately qualified with fixed two-sided Hoeffding bounded-mean radius `sqrt(log(2/alpha)/(2*N))`, alpha `0.000001`, range `[0,1]`, against exact population equity `exact_units/(420*population_N)`; it is never a Wilson estimand.
+The named statistical row is also replayed exactly as a regression guard, then checked against its preregistered estimands using a fixed two-sided Wilson score interval (`alpha=0.000001`, fixed `z=4.891638475698591`). The test never adapts trials, tolerance, seeds, or interval after execution. For each W/T/L Bernoulli event, the interval is built from the observed Monte Carlo successes and fixed observed trial count, then must cover the independently enumerated exact population probability. Pot-share equity is separately qualified with fixed two-sided Hoeffding bounded-mean radius `sqrt(log(2/alpha)/(2*N))`, alpha `0.000001`, range `[0,1]`, against exact population equity `exact_units/(420*population_N)`; it is never a Wilson estimand.
 
 ## 9. Phase 0 close gate
 
