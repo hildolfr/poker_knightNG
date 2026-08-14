@@ -1,9 +1,10 @@
 # Phase 6C performance-characterization method
 
-**Status:** normative protocol and implemented private harness; **no baseline has
-been recorded**. This document preregisters how the first CUDA baseline is to be
-collected and published. The harness is an operator-only tool, not a public
-package command, and this document makes no measured performance claim.
+**Status:** one complete Phase 6C public baseline projection is recorded in
+`validation/holdem/v1/cuda_benchmark_baseline.json`, with its SHA-256 manifest.
+The baseline is a privacy-filtered, hash-bound checkpoint, not a comparison,
+speedup, regression, or absolute-performance claim. The harness remains an
+operator-only tool, not a public package command.
 
 **Historical provenance note:** `TODO.md` is qualification-bound legacy history
 retained byte-for-byte under immutable Phase 5 authority. Its dated 2025 phrases
@@ -322,3 +323,30 @@ The output filename must not already exist. The controller refuses dirty source,
 symlinked authorities, malformed or contested GPU admission, worker stderr,
 digest disagreement, incomplete populations, invalid cache handoff, and any
 record rejected by the bound verifier.
+
+## 10. Recorded public checkpoint and verification
+
+`validation/holdem/v1/cuda_benchmark_baseline.json` is the closed public
+projection schema instance. It contains exactly the 48 canonical steady cells,
+the allowlisted percentile and p50-throughput summaries, instrumented stage
+aggregates, restricted CUDA identities, protocol outcome, and the required
+source/artifact/authority/private-evidence hashes. Its companion manifest is
+`validation/holdem/v1/manifests/cuda_benchmark_baseline.sha256`.
+
+The stdlib-only `tools/project_cuda_benchmark_baseline.py` first checks the
+private canonical digest and runs the private semantic verifier. It then binds
+controller and method bytes with `git show <source-commit>:<path>` so later
+publication edits do not relabel collection-time authority. It publishes no
+raw evidence and accepts no output overwrite. To reproduce the public artifact
+from access-controlled evidence, supply the recorded private digest out of band:
+
+```sh
+uv run python tools/project_cuda_benchmark_baseline.py project \
+  "$PRIVATE_EVIDENCE" --private-sha256 "$PRIVATE_EVIDENCE_SHA256" \
+  --repo-root "$PWD" --source-commit 3932868ff43b175b80f02b5f8a4a45d1d450ec13 \
+  --output /absolute/public-output/cuda_benchmark_baseline.json
+uv run python tools/project_cuda_benchmark_baseline.py verify \
+  validation/holdem/v1/cuda_benchmark_baseline.json \
+  --manifest validation/holdem/v1/manifests/cuda_benchmark_baseline.sha256 \
+  --repo-root "$PWD" --source-commit 3932868ff43b175b80f02b5f8a4a45d1d450ec13
+```
