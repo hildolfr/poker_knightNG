@@ -1,12 +1,12 @@
 # Hold'em v1 validation and conformance specification
 
-**Status:** binding v1 contract/validation specification. Phase 2 checkpoint C adds the committed rank/exact/tie fixture corpus, manifest, and independent-engine qualification record described below; deterministic dealer/stream, CUDA backend, and service remain unimplemented.
+**Status:** binding v1 contract/validation specification. The schema/semantic contract, exact oracle, deterministic CPU stream/engine, explicit CUDA engine, and deterministic GPU qualification/publication checkpoints are complete. A network service and automatic CUDA routing remain unimplemented.
 
 ## 1. Authority, scope, and future artifacts
 
 The normative authorities are [ADR 0001](../../../docs/adr/0001-equity-v1-scope.md) (scope and no-fallback rule), [ADR 0002](../../../docs/adr/0002-card-rank-and-tie-semantics.md) (cards, rank keys, outcomes, categories, and equity), [ADR 0003](../../../docs/adr/0003-deterministic-rng-and-deal-order.md) (case bytes, SHA-256, Philox, and dealing), and the v1 [request](../../../contracts/v1/equity-request.schema.json), [result](../../../contracts/v1/equity-result.schema.json), and [problem](../../../contracts/v1/problem.schema.json) schemas.  If wording conflicts, the ADR/schema that owns the subject controls.
 
-The preserved legacy code and tests are evidence and may suggest vectors; they are **not an oracle**. Phase 2's independent transparent evaluator/exact oracle, committed fixture corpus, independent-engine qualification, and complete `C(52,7)=133,784,560` release-candidate category corpus are available. The hash-bound `seven_card_release_qualification.json` records exact canonical totals and its honest differential scope: the exact C category function used by the exhaustive counter, transparent evaluator, and pinned Treys 0.1.8 agree per hand on a deterministic 10,000-hand all-category/wheel sample, while every full-space category is checked against canonical totals. Phase 3's deterministic CPU stream remains future work.
+The preserved legacy code and tests are evidence and may suggest vectors; they are **not an oracle**. Phase 2's independent transparent evaluator/exact oracle, committed fixture corpus, independent-engine qualification, and complete `C(52,7)=133,784,560` release-candidate category corpus are available. The hash-bound `seven_card_release_qualification.json` records exact canonical totals and its honest differential scope: the exact C category function used by the exhaustive counter, transparent evaluator, and pinned Treys 0.1.8 agree per hand on a deterministic 10,000-hand all-category/wheel sample, while every full-space category is checked against canonical totals. Phase 3 supplies the deterministic Philox/deal stream, CPU Monte Carlo engine, and generated seed bank. Phase 4 supplies the explicit CUDA engine and source-hashed runtime. Phase 5 supplies the fail-closed exact-SHA GPU qualification harness and public hash-bound qualification record.
 
 The committed Phase 2 fixture materials are:
 
@@ -16,26 +16,33 @@ The committed Phase 2 fixture materials are:
 * `manifests/sha256sums.txt`
 * `QUALIFICATION.md`
 
-`rng_seed_bank.json` remains planned for Phase 3. The qualification record documents the reproducible generator command, derivation inputs, and separately pinned differential engine. Fixture generation is reviewed separately from any production evaluator/CUDA path. No generated fixture may use legacy code or production CUDA as its sole oracle: every asserted fixture needs at least one independently derived path (transparent five-card/subset enumeration, independently reviewed arithmetic, or a separately pinned differential engine). A manifest authenticates bytes, not truth.
+`rng_seed_bank.json` and `manifests/rng_seed_bank.sha256` are the committed Phase 3 deterministic replay authority. `cuda_release_qualification.json` and `manifests/cuda_release_qualification.sha256` are the Phase 5 public qualification record and binding manifest. Qualification records document reproducible commands and exact source/evidence identities. Fixture generation is reviewed separately from any production evaluator/CUDA path. No generated fixture may use legacy code or production CUDA as its sole oracle: every asserted fixture needs at least one independently derived path (transparent five-card/subset enumeration, independently reviewed arithmetic, or a separately pinned differential engine). A manifest authenticates bytes, not truth.
 
 ## 2. Layers and evidence plan
 
 | Layer | What is checked | Planned evidence | Status |
 |---|---|---|---|
-| Schema/structural | JSON shape, closed objects, lexical wire formats | schema positives/negatives | planned |
-| Semantic | cross-field meanings and integer conservation | contract semantic tests | planned |
-| Exact evaluator/oracle | five-card keys, best 5 of 7, exact Hold'em counts | committed rank/exact/tie JSONL fixtures, SHA-256 manifest, Treys differential qualification | Phase 2 checkpoint C |
-| Deterministic stream replay | case bytes/hash, Philox, selection and deals | KATs, deal vectors, seed bank | Phase 3 |
-| CUDA conformance | CPU/CUDA exact integer-result equality and geometry invariance | differential/trace tests | Phase 4 |
+| Schema/structural | JSON shape, closed objects, lexical wire formats | schema positives/negatives | complete |
+| Semantic | cross-field meanings and integer conservation | contract semantic tests | complete |
+| Exact evaluator/oracle | five-card keys, best 5 of 7, exact Hold'em counts | committed rank/exact/tie JSONL fixtures, SHA-256 manifest, Treys differential qualification | Phase 2 complete |
+| Deterministic stream replay | case bytes/hash, Philox, selection and deals | KATs, deal vectors, seed bank | Phase 3 complete |
+| CUDA conformance | CPU/CUDA exact integer-result equality, fixed reduction geometry, cold/warm/PTX paths, sanitizers | exact-SHA qualification harness and public record | Phases 4–5 complete |
 | Statistical characterization | predeclared interval checks against exact cases | deterministic seed-bank jobs | later |
+
+### Implemented checkpoint status
+
+- **Phase 3 — deterministic CPU stream and engine: COMPLETE.**
+- **Phase 4 — explicit CUDA engine: COMPLETE.** CUDA remains explicitly selected and never silently substituted.
+- **Phase 5A — deterministic GPU qualification harness: COMPLETE.**
+- **Phase 5B — qualification publication: COMPLETE.** The source checkpoint is `c2b3eb96413d17194a85144491c71539a4818452`; the later publication checkpoint does not replace that source identity.
 
 Structural schema validity is necessary but never proves semantic validity. Exact oracle comparison is not a substitute for deterministic replay, and statistical agreement never waives an exact invariant.
 
 ## 3. Result-field coverage matrix
 
-All result fields are required by the result schema. `u64` means canonical decimal unsigned-64-bit JSON string; `fraction` means the closed object `{numerator,denominator}` of such strings. “Reducer” is future CPU/CUDA integer reduction; it is not a claim of present code.
+All result fields are required by the result schema. `u64` means canonical decimal unsigned-64-bit JSON string; `fraction` means the closed object `{numerator,denominator}` of such strings. CPU and CUDA reducers implement the exact integer algebra; statistical tolerance never applies to reducer equality.
 
-| Wire path | Semantics / units | Provenance | Planned invariant/test |
+| Wire path | Semantics / units | Provenance | Invariant/test |
 |---|---|---|---|
 | `contract_version` | literal `v1` | accepted request/contract | schema const; request/result coherence |
 | `backend` | actual `cpu_reference` or `cuda`, never fallback | requested/actual executor | enum; equals request; unavailable requested backend errors |
@@ -88,7 +95,7 @@ No success may contain partial counters. The four fraction representations are e
 
 ## 4. Exact rank, tie, and equity gates
 
-Future rank fixtures MUST reproduce ADR 0002’s wheel `(4,5,0,0,0,0)`, six-high `(4,6,0,0,0,0)`, flush-kicker, two-pair kicker, double-trips, quads-kicker, and royal-display-as-`straight_flush` examples. Seven-card evaluation is the lexicographic maximum of all 21 five-card subsets.
+Rank fixtures MUST reproduce ADR 0002’s wheel `(4,5,0,0,0,0)`, six-high `(4,6,0,0,0,0)`, flush-kicker, two-pair kicker, double-trips, quads-kicker, and royal-display-as-`straight_flush` examples. Seven-card evaluation is the lexicographic maximum of all 21 five-card subsets.
 
 | k other winners | total winners | units/event `420/(k+1)` | expected bin/fraction behavior |
 |---:|---:|---:|---|
@@ -111,7 +118,7 @@ These two auditable derivations predate the executable Phase 2 oracle and remain
 | Board `As Ah Ad Kc Qd`; hero `Ks Kd`; O `Ac Qc` | Hero key `(6,14,13,0,0,0)`; opponent key `(7,14,13,0,0,0)` is lexicographically higher. | Five-card subset check: hero uses AAAKK (full house); opponent uses AAAAK (quads); strict opponent winner set, no split. | losses=1, units=0, hero `full_house`=1. |
 | Four trials: win, k=1, k=2, loss | Apply ADR keys/outcome predicates once per trial. | Pot arithmetic: `420 + 420/2 + 420/3 + 0 = 770`; winner/tie/loss events are 1/2/1. | W/T/L=1/2/1, bins=(1,1,0,0,0,0), N=4, units=770, equity=`770/(420*4)=11/24`. |
 
-For every row later fixtures/tests MUST independently repeat both derivation styles: transparent rank/subset comparison and either direct winner-set/pot arithmetic or separately enumerated five-card subsets. Impossible bins `k > opponent_count` MUST be zero. In any individual trial exactly one of win, one bin, or loss occurs; category classification is independent of outcome.
+For every row fixtures/tests MUST independently repeat both derivation styles: transparent rank/subset comparison and either direct winner-set/pot arithmetic or separately enumerated five-card subsets. Impossible bins `k > opponent_count` MUST be zero. In any individual trial exactly one of win, one bin, or loss occurs; category classification is independent of outcome.
 
 ## 5. Canonical serialization and hash gate
 
@@ -142,7 +149,7 @@ This exact SHA-256 digest is normative. Future tests MUST recompute and assert e
 
 Phase 0 has two documented derivations for the equivalent case: **A**, direct field-boundary concatenation `0x17 || ASCII(...) || 0x02 || 0c19 || 0x03 || 000e22 || 0x02`; **B**, an independently written validated-wire transformation (temporary, untracked conformance script) produced the same hex/hash. The Phase 0 gate requires two independent tests to produce identical bytes/hash.
 
-Future replay tests MUST reproduce ADR 0003’s three Random123 Philox KAT rows and its end-to-end known-case key/deal vector: case hash above, seed `0x0123456789abcdef`, key digest `88e7ce310c8febab77f7362ee4951b9b74aa958f8005c084bad9f433ce6162ef`, key `(0x31cee788,0xabeb8f0c)`, and simulation 7 dealt IDs `[7,8,37,42,15,10]`, plus its nonzero-attempt counter row. Those ADR vectors, not legacy output, are normative.
+Replay tests MUST reproduce ADR 0003’s three Random123 Philox KAT rows and its end-to-end known-case key/deal vector: case hash above, seed `0x0123456789abcdef`, key digest `88e7ce310c8febab77f7362ee4951b9b74aa958f8005c084bad9f433ce6162ef`, key `(0x31cee788,0xabeb8f0c)`, and simulation 7 dealt IDs `[7,8,37,42,15,10]`, plus its nonzero-attempt counter row. Those ADR vectors, not legacy output, are normative.
 
 ## 6. Error and negative matrix
 
@@ -165,7 +172,7 @@ Schema rejection identifies malformed/closed wire data; semantic/runtime mapping
 | admission/resource exhaustion | runtime | `RESOURCE_EXHAUSTED` |
 | invariant breach/unclassified internal failure | runtime | `INTERNAL_ERROR` |
 
-Future negatives MUST schema-validate both representative valid problem documents and invalid mutations, including `field_errors` only for allowed input/unsupported codes and never runtime/internal branches.
+Negative tests MUST schema-validate both representative valid problem documents and invalid mutations, including `field_errors` only for allowed input/unsupported codes and never runtime/internal branches.
 
 ## 7. Statistical boundaries
 
@@ -187,4 +194,5 @@ The named statistical row is also replayed exactly as a regression guard, then c
 - [x] Schema meta-validation and positive/negative examples are required; no analytics fields, fallback, adaptive sampling, or parallel-GPU promises enter v1.
 - [x] Project-owner human approval was explicitly recorded after independent specification and quality reviews; the Phase 0 contract is approved for Phase 1.
 - [x] Phase 2 checkpoint C supplies an executable independent reference oracle, generated rank/exact/tie fixtures, their SHA-256 manifest, and a separately pinned differential-engine qualification record.
-- [ ] Deterministic stream, CUDA backend, and service remain future work.
+- [x] Deterministic CPU stream/engine and explicit qualified CUDA engine are implemented with no fallback.
+- [ ] Network service and explicit user-facing routing beyond direct engine selection remain future work.

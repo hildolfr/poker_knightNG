@@ -1,5 +1,7 @@
 # Poker Knight NG Architecture
 
+> **LEGACY — NON-AUTHORITATIVE.** This document describes the superseded pre-revival architecture and is retained only as historical evidence. Current architecture and behavior are defined by `docs/adr/`, `contracts/v1/`, `validation/holdem/v1/SPEC.md`, and the reviewed implementation under `src/poker_knight_ng/`. Do not implement or validate against the monolithic-kernel, xorshift, legacy API, dependency, or performance claims below.
+
 ## Overview
 
 Poker Knight NG is a GPU-accelerated Texas Hold'em poker solver designed as a high-performance drop-in replacement for the original Poker Knight. The architecture prioritizes speed through a monolithic CUDA kernel design while maintaining the exact API compatibility defined in `apiNG.md`.

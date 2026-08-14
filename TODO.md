@@ -1,5 +1,7 @@
 # Poker Knight NG - Implementation TODO List
 
+> **LEGACY — NON-AUTHORITATIVE.** This file records the superseded pre-revival implementation plan and historical claims. It is retained only as project evidence. Current authority is `docs/adr/`, `contracts/v1/`, and `validation/holdem/v1/SPEC.md`; do not use the checked boxes, dependency versions, architecture, or performance figures below as current state.
+
 ## Phase 1: Project Setup
 - [x] Create project directory structure as defined in ARCHITECTURE.md
 - [x] Create setup.py and pyproject.toml for package configuration
