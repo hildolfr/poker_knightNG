@@ -1,4 +1,4 @@
-"""Poker Knight NG contract-only public boundary.
+"""Poker Knight NG public contract and explicit local engine boundary.
 
 Importing this module deliberately does not import CuPy or compile CUDA sources.
 """
@@ -9,6 +9,27 @@ try:
 except PackageNotFoundError:  # source-tree import before installation
     __version__ = "0+unknown"
 
-from .contract import (ContractProblem, EquityRequest, EquityResult, canonical_case_bytes, canonical_case_hash)
+from .contract import (
+    ContractProblem,
+    EquityRequest,
+    EquityResult,
+    canonical_case_bytes,
+    canonical_case_hash,
+    serialize_equity_result,
+)
+from .engine import CPUReferenceEngine, CUDAEngine, Engine, solve, solve_cuda
 
-__all__ = ["ContractProblem", "EquityRequest", "EquityResult", "canonical_case_bytes", "canonical_case_hash", "__version__"]
+__all__ = [
+    "CPUReferenceEngine",
+    "CUDAEngine",
+    "ContractProblem",
+    "Engine",
+    "EquityRequest",
+    "EquityResult",
+    "canonical_case_bytes",
+    "canonical_case_hash",
+    "serialize_equity_result",
+    "solve",
+    "solve_cuda",
+    "__version__",
+]

@@ -20,10 +20,13 @@ LEGACY_PATHS = (
 )
 REQUIRED_PYTHON = (
     "__init__.py",
+    "__main__.py",
+    "cli.py",
     "contract/__init__.py",
     "contract/canonical.py",
     "contract/errors.py",
     "contract/models.py",
+    "contract/serialize.py",
     "schemas/__init__.py",
     "schemas/v1/__init__.py",
 )

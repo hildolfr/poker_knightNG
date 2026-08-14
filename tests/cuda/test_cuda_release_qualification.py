@@ -38,7 +38,7 @@ def test_public_docs_state_current_cpu_cuda_and_qualification_boundaries() -> No
         "CUDAEngine",
         "c2b3eb96413d17194a85144491c71539a4818452",
         "cuda_release_qualification.json",
-        "solve() remains CPU-default",
+        "`solve()` remains CPU-only",
     ):
         assert required in readme
     assert "There is no production CPU solver, deterministic deal stream, CUDA backend" not in readme

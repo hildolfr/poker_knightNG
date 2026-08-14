@@ -2,5 +2,13 @@
 from .canonical import canonical_case_bytes, canonical_case_hash
 from .errors import ContractProblem
 from .models import EquityRequest, EquityResult
+from .serialize import serialize_equity_result
 
-__all__ = ["ContractProblem", "EquityRequest", "EquityResult", "canonical_case_bytes", "canonical_case_hash"]
+__all__ = [
+    "ContractProblem",
+    "EquityRequest",
+    "EquityResult",
+    "canonical_case_bytes",
+    "canonical_case_hash",
+    "serialize_equity_result",
+]

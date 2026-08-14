@@ -81,7 +81,18 @@ def test_public_projection_is_private_safe_and_cpu_only() -> None:
         '"memory_free_after_bytes"',
     ))
 
-    probe = "import sys; import tools.verify_cuda_statistical_release_qualification; assert 'cupy' not in sys.modules"
+    probe = """
+import importlib.util
+from pathlib import Path
+import sys
+
+path = Path.cwd() / "tools/verify_cuda_statistical_release_qualification.py"
+spec = importlib.util.spec_from_file_location("phase5c_public_verifier", path)
+assert spec is not None and spec.loader is not None
+module = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(module)
+assert "cupy" not in sys.modules
+"""
     result = subprocess.run(
         [sys.executable, "-c", probe], cwd=ROOT,
         check=False, capture_output=True, text=True, timeout=20,
