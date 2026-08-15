@@ -1,10 +1,10 @@
 # Phase 6C performance-characterization method
 
-**Status:** one complete Phase 6C public baseline projection is recorded in
-`validation/holdem/v1/cuda_benchmark_baseline.json`, with its SHA-256 manifest.
-The baseline is a privacy-filtered, hash-bound checkpoint, not a comparison,
-speedup, regression, or absolute-performance claim. The harness remains an
-operator-only tool, not a public package command.
+**Status:** the preregistered direct seven-card evaluator candidate passed every
+qualification and performance gate and is now the current complete Phase 6C
+public baseline in `validation/holdem/v1/cuda_benchmark_baseline.json`, with its
+SHA-256 manifest. The records are privacy-filtered, hash-bound checkpoints; the
+harness remains an operator-only tool, not a public package command.
 
 **Historical provenance note:** `TODO.md` is qualification-bound legacy history
 retained byte-for-byte under immutable Phase 5 authority. Its dated 2025 phrases
@@ -299,15 +299,27 @@ candidate is fixed as a direct rank-histogram and per-suit-mask seven-card
 scorer that preserves the exact six-byte `HandScore` ordering and retains the
 combinatorial scorer as its independent oracle.
 
-The candidate is accepted only if all exact CPU, CUDA, sanitizer, geometry, and
-statistical qualification gates pass, a fresh run of this unchanged protocol
-is admitted on the same device/environment, the geometric mean of steady p50
-latency across the twelve 1,000,000-trial cells is at least 10% lower than the
-published baseline, and no one of those twelve cells regresses at steady p50 or
-p95. The separately instrumented simulation-stage totals must also decrease in
-aggregate, but they are single characterization observations and must not be
-misrepresented as percentiles. Failure of any gate rejects the candidate and
-retains the published baseline implementation.
+The candidate was accepted after all exact CPU, CUDA, sanitizer, geometry, and
+statistical qualification gates passed and a fresh uncontended run of this
+unchanged protocol completed on the same device/environment. Across the twelve
+1,000,000-trial cells, geometric-mean steady p50 latency was 64.742% lower than
+the superseded baseline, with zero p50 regressions and zero p95 regressions. The
+separately instrumented simulation-stage aggregate was 82.601% lower for those
+twelve cells and 82.465% lower across all 48 cells. Stage observations remain
+single characterization measurements and are not percentiles.
+
+The superseded baseline records source commit
+`3932868ff43b175b80f02b5f8a4a45d1d450ec13` and its public projection remains
+recoverable from Git at commit `7fb617b900c06102caafe240ff95afe7fef2aa58`;
+its public-record SHA-256 is
+`78fbb7f734763528c703b532a0cc7cd80a9a1d46fcc9813feefb20cb45a820b8`
+and its private-evidence commitment is
+`432c583e98856eef186939cf0e3adc7fb63296a3f3ca1b78b011dbb5a1b3fd1d`.
+The accepted run binds controller source
+`71393540fefba4b987a446e0d2ec954e72bbe2e2`, public-record SHA-256
+`eb43cf5fe865ce0bb116b4a3da0368e1e704bdb11bacc31d253a591ea22b7548`,
+and private-evidence commitment
+`b708cc18ce5ded2131620f21cc5cd6e15dad1f7c2b42140872dca394859c3251`.
 
 ## 9. Reproduction status and command forms
 
@@ -371,10 +383,10 @@ from access-controlled evidence, supply the recorded private digest out of band:
 ```sh
 uv run python tools/project_cuda_benchmark_baseline.py project \
   "$PRIVATE_EVIDENCE" --private-sha256 "$PRIVATE_EVIDENCE_SHA256" \
-  --repo-root "$PWD" --source-commit 3932868ff43b175b80f02b5f8a4a45d1d450ec13 \
+  --repo-root "$PWD" --source-commit 71393540fefba4b987a446e0d2ec954e72bbe2e2 \
   --output /absolute/public-output/cuda_benchmark_baseline.json
 uv run python tools/project_cuda_benchmark_baseline.py verify \
   validation/holdem/v1/cuda_benchmark_baseline.json \
   --manifest validation/holdem/v1/manifests/cuda_benchmark_baseline.sha256 \
-  --repo-root "$PWD" --source-commit 3932868ff43b175b80f02b5f8a4a45d1d450ec13
+  --repo-root "$PWD" --source-commit 71393540fefba4b987a446e0d2ec954e72bbe2e2
 ```
