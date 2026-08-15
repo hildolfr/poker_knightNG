@@ -53,6 +53,8 @@ def test_packaging_adr_and_roadmap_preserve_no_listener_boundary() -> None:
     assert "No listener, socket activation, engine invocation or deployment" in adr
     assert "08f97ac10337f945eaf1bf993be3b0faaa5a8955" in phase7b
     assert "31864664096" in phase7b
+    assert "eea11831afe62674be7ec7572b264fb351c74461" in phase7b
+    assert "31889215662" in phase7b
     assert "ADR 0006" in phase7b
     assert "raw framing" in phase7b
     assert "no listener" in phase7b.lower()
