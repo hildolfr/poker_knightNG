@@ -90,11 +90,14 @@ def test_packaging_adr_and_roadmap_preserve_no_listener_boundary() -> None:
     assert "31896238833" in phase7b
     assert "5e56547586f031a453fa00c8f9d6f558bf97546b" in phase7b
     assert "31897788088" in phase7b
+    assert "b9fead1bdc645acadf35831e6a9c5eccdf288ee5" in phase7b
+    assert "31901512049" in phase7b
     assert "ADR 0006" in phase7b
     assert "incremental reader" in phase7b
     assert "raw framing" in phase7b
     assert "route and response-envelope" in phase7b
     assert "semantic request adapter" in phase7b
+    assert "cancellation-safe async solve handoff" in phase7b
     assert "three-wheel service boundary" in phase7b
     assert "one-solve admission" in phase7b
     assert "zero-queue" in phase7b
