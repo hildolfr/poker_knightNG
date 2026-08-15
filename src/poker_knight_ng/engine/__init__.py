@@ -6,12 +6,9 @@ from .local import CPUReferenceEngine
 from .cuda import CUDAEngine
 from .result import to_equity_result
 
-_DEFAULT_ENGINE = CPUReferenceEngine()
-
-
 def solve(request: EquityRequest) -> EquityResult:
-    """Resolve a request through the CPU-reference route only."""
-    return _DEFAULT_ENGINE.solve(request)
+    """Resolve a request through a newly selected CPU-reference engine."""
+    return CPUReferenceEngine().solve(request)
 
 
 def solve_cuda(request: EquityRequest) -> EquityResult:

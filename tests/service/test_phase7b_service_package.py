@@ -59,6 +59,7 @@ def test_ci_verifies_frozen_service_environment_and_tests() -> None:
         '"$service_venv/bin/python" -I -c "import '
         'poker_knight_ng_service.adapter, poker_knight_ng_service.admission, '
         'poker_knight_ng_service.connection, '
+        'poker_knight_ng_service.execution, '
         'poker_knight_ng_service.framing, '
         'poker_knight_ng_service.responses, poker_knight_ng_service.routing"'
         in workflow
@@ -97,7 +98,7 @@ def test_packaging_adr_and_roadmap_preserve_no_listener_boundary() -> None:
     assert "no listener" in phase7b.lower()
 
 
-def test_phase7b_source_has_no_listener_or_engine_executor() -> None:
+def test_phase7b_source_has_exact_engine_authority_and_no_listener() -> None:
     expected_imports = {
         "__init__.py": (),
         "adapter.py": (
@@ -123,6 +124,15 @@ def test_phase7b_source_has_no_listener_or_engine_executor() -> None:
             "from typing import Protocol",
             "from .framing import AdmittedRequest, TransportFailure, _inspect_request_head, admit_request",
         ),
+        "execution.py": (
+            "from __future__ import annotations",
+            "from poker_knight_ng.contract import ContractProblem, EquityRequest, serialize_equity_result",
+            "from poker_knight_ng.contract.errors import problem",
+            "from poker_knight_ng.engine import CPUReferenceEngine, CUDAEngine",
+            "from .adapter import AdaptedSolveRequest",
+            "from .admission import admit_solve",
+            "from .routing import Route",
+        ),
         "framing.py": (
             "from __future__ import annotations",
             "from dataclasses import dataclass",
@@ -144,10 +154,9 @@ def test_phase7b_source_has_no_listener_or_engine_executor() -> None:
     }
     observed_imports: dict[str, tuple[str, ...]] = {}
     forbidden_calls: list[str] = []
+    engine_calls: list[tuple[str, str]] = []
     dunder_accesses: list[tuple[str, str]] = []
     forbidden_name_calls = {
-        "CPUReferenceEngine",
-        "CUDAEngine",
         "__import__",
         "compile",
         "create_unix_server",
@@ -165,12 +174,9 @@ def test_phase7b_source_has_no_listener_or_engine_executor() -> None:
         "vars",
     }
     forbidden_attribute_calls = {
-        "CPUReferenceEngine",
-        "CUDAEngine",
         "create_unix_server",
         "getattr",
         "import_module",
-        "solve",
         "solve_cuda",
         "start_next_cycle",
         "start_unix_server",
@@ -196,6 +202,20 @@ def test_phase7b_source_has_no_listener_or_engine_executor() -> None:
             and isinstance(node.func, ast.Attribute)
             and node.func.attr in forbidden_attribute_calls
         )
+        engine_calls.extend(
+            (path.name, node.func.id)
+            for node in ast.walk(tree)
+            if isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Name)
+            and node.func.id in {"CPUReferenceEngine", "CUDAEngine"}
+        )
+        engine_calls.extend(
+            (path.name, ast.unparse(node.func))
+            for node in ast.walk(tree)
+            if isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Attribute)
+            and node.func.attr == "solve"
+        )
         dunder_accesses.extend(
             (ast.unparse(node.value), node.attr)
             for node in ast.walk(tree)
@@ -206,6 +226,11 @@ def test_phase7b_source_has_no_listener_or_engine_executor() -> None:
 
     assert observed_imports == expected_imports
     assert forbidden_calls == []
+    assert engine_calls == [
+        ("execution.py", "CPUReferenceEngine"),
+        ("execution.py", "CUDAEngine"),
+        ("execution.py", "engine.solve"),
+    ]
     assert dunder_accesses == [
         ("object", "__new__"),
         ("object", "__setattr__"),
@@ -215,6 +240,9 @@ def test_phase7b_source_has_no_listener_or_engine_executor() -> None:
         ("object", "__getattribute__"),
         ("object", "__getattribute__"),
         ("object", "__new__"),
+        ("object", "__getattribute__"),
+        ("object", "__getattribute__"),
+        ("object", "__getattribute__"),
         ("super()", "__init__"),
         ("super()", "__init__"),
     ]

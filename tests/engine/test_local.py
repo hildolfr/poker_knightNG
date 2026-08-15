@@ -344,3 +344,21 @@ def test_engine_protocol_and_cpu_only_top_level_import():
     assert isinstance(CPUReferenceEngine(), Engine)
     code = "import poker_knight_ng.engine; import sys; assert 'cupy' not in sys.modules"
     subprocess.run([sys.executable, "-c", code], check=True)
+
+
+def test_public_package_import_does_not_construct_default_engine():
+    code = """
+import sys
+
+constructed = []
+
+def profile(frame, event, arg):
+    if event == "call" and frame.f_code.co_qualname == "CPUReferenceEngine.__init__":
+        constructed.append(True)
+
+sys.setprofile(profile)
+import poker_knight_ng
+sys.setprofile(None)
+assert not constructed, "public package import constructed the default CPU engine"
+"""
+    subprocess.run([sys.executable, "-c", code], check=True)
