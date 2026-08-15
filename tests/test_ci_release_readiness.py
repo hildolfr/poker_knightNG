@@ -41,5 +41,7 @@ def test_release_process_is_fail_closed_and_history_preserving() -> None:
 def test_roadmap_tracks_ci_and_promotion_as_distinct_states() -> None:
     text = ROADMAP.read_text("utf-8")
     assert "Automated CPU CI" in text
+    assert "**Active**" in text
+    assert "actions/runs/31858032803" in text
     assert "Promotion to default `main`" in text
     assert "GitHub release" in text

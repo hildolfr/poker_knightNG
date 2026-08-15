@@ -107,7 +107,7 @@ silently approximated through a v1 interface.
 | PyPI publication | **Untouched** | No package release has been published |
 | GitHub release | **Untouched** | No GitHub release exists |
 | Revival/release tag | **Untouched** | Only the preserved legacy tag exists |
-| Automated CPU CI | **Implemented; remote proof pending** | Pinned read-only workflow now covers full tests, authorities, package build, and isolated wheel smoke test; it is not complete until the exact branch run passes |
+| Automated CPU CI | **Active** | Exact candidate `71f1592dabd04e21d9b9d71d1eab9ce760809f09` passed the first remote [CPU verification run](https://github.com/hildolfr/poker_knightNG/actions/runs/31858032803); the pinned read-only workflow covers full tests, authorities, package build, and isolated wheel smoke testing |
 | Release procedure | **Implemented** | `docs/release-process.md` freezes approval, history-preservation, privacy, publication, and rollback gates |
 | Automated release pipeline | **Untouched** | No sign or publish workflow exists |
 | Network deployment | **Untouched** | No long-running API service has been built or deployed |
