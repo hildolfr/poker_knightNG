@@ -48,8 +48,8 @@ current roadmap.
 | Phase 6C-A — benchmark harness | **Complete** | Uncontested, identity-bound, privacy-safe benchmark protocol |
 | Phase 6C-B — baseline | **Complete** | First valid public performance baseline |
 | Phase 6C-C — evaluator optimization | **Complete** | Direct seven-card CUDA evaluator, requalification, comparison, and accepted replacement baseline |
-| Phase 7A — network service contract | **Not started** | Freeze transport, framing, limits, concurrency, cancellation, authentication boundary, error mapping, and versioning before implementation |
-| Phase 7B — bounded network service | **Untouched** | Implement and test only after Phase 7A approval |
+| Phase 7A — network service contract | **Implemented** | Accepted [ADR 0005](adr/0005-private-unix-http-service.md) and the hash-bound service profile freeze an AF_UNIX-only private boundary. No service listener is implemented or deployed |
+| Phase 7B — bounded network service | **Untouched** | Run the required runtime-selection/conformance spike before implementation |
 | Phase 7C — automatic CUDA routing contract | **Not started** | Requires a new ADR/versioned compatibility decision because v1 prohibits implicit routing and fallback |
 | Phase 7D — automatic routing implementation | **Untouched** | Define backend admission, deterministic selection, resource policy, and explicit failure behavior |
 | Phase 7E — network/runtime qualification | **Untouched** | Validate load, cancellation, resource exhaustion, privacy, security boundaries, and deployment behavior |
