@@ -12,14 +12,14 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 RECORD_RELATIVE = Path("validation/holdem/v1/cuda_statistical_release_qualification.json")
 MANIFEST_RELATIVE = Path("validation/holdem/v1/manifests/cuda_statistical_release_qualification.sha256")
-SOURCE_SHA = "f5b31a0cb94e6139cb81be2f013d9d6c44017d98"
-SOURCE_BRANCH = "revival/phase-5c-statistical-validation"
-PUBLISHED_BRANCH = "revival/phase-0-contract"
-EVIDENCE_SHA256 = "18782f307c424b7f94a363892324aab2ae8b108e4bb579ed754cf407b049a793"
-HARNESS_SHA256 = "3b5c77fb8c9e29d0a8c93bd34c1b3b4c04c08e683acac10bf6c738bf77407065"
-CUDA_SHA256 = "d011e0f5c4db4d12fcb5240b5996f0911af7f153c7942f16772f871917ca5263"
+SOURCE_SHA = "7fb617b900c06102caafe240ff95afe7fef2aa58"
+SOURCE_BRANCH = "revival/phase-6c-optimize-evaluator"
+PUBLISHED_BRANCH = "revival/phase-6c-optimize-evaluator"
+EVIDENCE_SHA256 = "27bf23106e44e399fb5157d1c61891852f9d9ce0f32d2504dc6f490271a24017"
+HARNESS_SHA256 = "b2429bea1ce9f3721b0fc4f43294b046eaf530114a5c1b69ab438ef31812a85c"
+CUDA_SHA256 = "8da8349bed65e782a18d29f83de884341b3838f40c1e83904d07860c2c4ade5a"
 QUALIFICATION_ID = "cuda-statistical-v1"
-RUN_ID = "phase5c-f5b31a0-live1"
+RUN_ID = "phase6c-opt-7fb617b-5c1"
 AGGREGATE_SHA256 = "aaed2605d43a639af1f8345dbcd768bd4366a75b50b7f5f30ca4eaeee5494b7f"
 SOURCE_BINDINGS = (
     "pyproject.toml", "uv.lock", "src/poker_knight_ng/_cuda_runtime.py",
@@ -35,8 +35,8 @@ SOURCE_BINDINGS = (
 ARTIFACTS = {
     "sdist": {
         "basename": "poker_knight_ng-0.1.0.tar.gz",
-        "sha256": "47e23655be10e28abe9f55d2e3e778e8f73ac5f3cd4d44728ce657ad9840d3bd",
-        "size": "63921",
+        "sha256": "429f2dab5e7c3dc3b9f1fa124b1ab61c4fae8e76457f3f519c55ae636784a625",
+        "size": "68995",
     },
     "seed_bank": {
         "basename": "rng_seed_bank.json",
@@ -45,13 +45,13 @@ ARTIFACTS = {
     },
     "seed_manifest": {
         "basename": "rng_seed_bank.sha256",
-        "sha256": "374d3818251b53cc674a13455983c121a7be96ad942394764e121ce68ae2446a",
+        "sha256": "f558526017cd52e3453c48f41b6d93225177cecceb0e047cc6824a56c7c985ec",
         "size": "1381",
     },
     "wheel": {
         "basename": "poker_knight_ng-0.1.0-py3-none-any.whl",
-        "sha256": "0457f09ab0ab184306b888a7056cce4ef09c330100db0afb91c7e7e055da82a3",
-        "size": "70968",
+        "sha256": "e742fb044d6b1065362f49c15d565e3dbc908156a69b3649a9d2625a608492bb",
+        "size": "77162",
     },
 }
 GEOMETRIES = {

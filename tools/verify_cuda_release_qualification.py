@@ -22,10 +22,10 @@ GIT_DRAIN_SECONDS = 0.25
 GIT_CLEANUP_SECONDS = 1.0
 SHA_RE = re.compile(r"[0-9a-f]{64}")
 DEVICE_RE = re.compile(r"cuda-uuid:[0-9a-f]{32}")
-SOURCE_SHA = "c2b3eb96413d17194a85144491c71539a4818452"
-SOURCE_DIGEST = "d011e0f5c4db4d12fcb5240b5996f0911af7f153c7942f16772f871917ca5263"
-EVIDENCE_SHA256 = "9e2edef60ec2a890b970ef83a8c114af0f56e74f7f0bf1c7e20c21e84ae5178d"
-QUALIFICATION_ID = "poker-knight-ng/cuda-release/c2b3eb96413d1719/d011e0f5c4db4d12"
+SOURCE_SHA = "7fb617b900c06102caafe240ff95afe7fef2aa58"
+SOURCE_DIGEST = "8da8349bed65e782a18d29f83de884341b3838f40c1e83904d07860c2c4ade5a"
+EVIDENCE_SHA256 = "295fb7629dc53d956f933b2dbc2cd37a1142d52d0c4bf71762e534d79272132d"
+QUALIFICATION_ID = "poker-knight-ng/cuda-release/7fb617b900c06102/8da8349bed65e782"
 RECORD_RELATIVE = "validation/holdem/v1/cuda_release_qualification.json"
 MANIFEST_RELATIVE = "validation/holdem/v1/manifests/cuda_release_qualification.sha256"
 SOURCE_BINDINGS = (
@@ -79,9 +79,9 @@ SANITIZER_SUMMARIES = {
 }
 COMMAND = (
     "RUN_CUDA_QUALIFICATION=1 python tools/qualify_gpu.py qualify "
-    "--run-id phase5-c2b3eb9-final2 "
-    "--target-sha c2b3eb96413d17194a85144491c71539a4818452 "
-    "--branch revival/phase-5-qualification-harness "
+    "--run-id phase6c-opt-7fb617b-5b3 "
+    "--target-sha 7fb617b900c06102caafe240ff95afe7fef2aa58 "
+    "--branch revival/phase-6c-optimize-evaluator "
     "--wheel poker_knight_ng-0.1.0-py3-none-any.whl "
     "--sdist poker_knight_ng-0.1.0.tar.gz"
 )
@@ -368,7 +368,7 @@ def _verify_record(record: dict[str, Any], root: Path) -> None:
     })
     if source["git_sha"] != SOURCE_SHA or source["cuda_source_sha256"] != SOURCE_DIGEST:
         raise VerificationError("source identity mismatch")
-    if source["executed_branch"] != "revival/phase-5-qualification-harness" or source["published_branch"] != "revival/phase-0-contract":
+    if source["executed_branch"] != "revival/phase-6c-optimize-evaluator" or source["published_branch"] != "revival/phase-6c-optimize-evaluator":
         raise VerificationError("branch identity mismatch")
     bindings = closed(source["bindings"], set(SOURCE_BINDINGS))
     source_blobs = _source_blobs(root, source["git_sha"])
@@ -379,7 +379,7 @@ def _verify_record(record: dict[str, Any], root: Path) -> None:
         raise VerificationError("CUDA closure mismatch")
 
     evidence = closed(record["evidence"], {"artifacts", "command", "qualification_sha256", "run_id"})
-    if evidence["run_id"] != "phase5-c2b3eb9-final2" or evidence["command"] != COMMAND:
+    if evidence["run_id"] != "phase6c-opt-7fb617b-5b3" or evidence["command"] != COMMAND:
         raise VerificationError("evidence identity mismatch")
     if digest(evidence["qualification_sha256"]) != EVIDENCE_SHA256:
         raise VerificationError("evidence hash mismatch")
@@ -411,18 +411,17 @@ def _verify_record(record: dict[str, Any], root: Path) -> None:
             raise VerificationError("invalid environment text")
 
     device = closed(record["device"], {
-        "compute_capability", "device_id", "memory_free_after_bytes",
-        "memory_free_before_bytes", "minimum_required_bytes",
+        "compute_capability", "device_id", "minimum_required_bytes",
     })
     if device["compute_capability"] != "12.0" or type(device["device_id"]) is not str or DEVICE_RE.fullmatch(device["device_id"]) is None:
         raise VerificationError("device identity mismatch")
     minimum = decimal(device["minimum_required_bytes"])
-    if minimum != 2 * 1024**3 or decimal(device["memory_free_before_bytes"]) < minimum or decimal(device["memory_free_after_bytes"]) < minimum:
+    if minimum != 2 * 1024**3:
         raise VerificationError("device admission mismatch")
 
     tests = closed(record["tests"], {"errors", "failures", "passed", "skipped", "total"})
     counts = {key: decimal(value) for key, value in tests.items()}
-    if counts != {"errors": 0, "failures": 0, "passed": 605, "skipped": 2, "total": 607}:
+    if counts != {"errors": 0, "failures": 0, "passed": 791, "skipped": 8, "total": 799}:
         raise VerificationError("test summary mismatch")
 
     workers = closed(record["workers"], {"cold", "cpu_cuda_frozen_equal", "exact_vector_count", "force_ptx_jit", "warm"})

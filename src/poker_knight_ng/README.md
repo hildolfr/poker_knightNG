@@ -99,11 +99,11 @@ The approved GPU dependency is exactly `cupy-cuda13x==14.1.1`. CUDA compilation 
 
 ## Current CUDA qualification
 
-The qualified source checkpoint is `c2b3eb96413d17194a85144491c71539a4818452`. Its exact wheel-installed run passed cold, warm-cache, and forced-PTX execution for all committed seed-bank vectors, the full 607-test JUnit run with zero failures/errors and two skips, and Compute Sanitizer `memcheck`, `racecheck`, `initcheck`, and `synccheck` with zero findings.
+The qualified source checkpoint is `7fb617b900c06102caafe240ff95afe7fef2aa58`. Its exact wheel-installed run passed cold, warm-cache, and forced-PTX execution for all committed seed-bank vectors, the full 799-test JUnit run with zero failures/errors and eight skips, and Compute Sanitizer `memcheck`, `racecheck`, `initcheck`, and `synccheck` with zero findings.
 
 The compact public record is `validation/holdem/v1/cuda_release_qualification.json`; verify it with `tools/verify_cuda_release_qualification.py`. The record binds the source closure, qualification tool, seed authority, lockfile, wheel/sdist/JUnit/sanitizer hashes, and the private canonical evidence hash without publishing host paths, process inventories, or raw device names.
 
-Phase 5C statistical qualification passed on executed source `f5b31a0cb94e6139cb81be2f013d9d6c44017d98`: all four preregistered batch geometries produced the exact frozen integer aggregate, exact planned kernel-call traces, passing fixed-stream Wilson/Hoeffding gates, and zero rejection count. The privacy-safe public record is `validation/holdem/v1/cuda_statistical_release_qualification.json`; verify it CPU-only with `tools/verify_cuda_statistical_release_qualification.py`.
+Phase 5C statistical qualification passed on executed source `7fb617b900c06102caafe240ff95afe7fef2aa58`: all four preregistered batch geometries produced the exact frozen integer aggregate, exact planned kernel-call traces, passing fixed-stream Wilson/Hoeffding gates, and zero rejection count. The privacy-safe public record is `validation/holdem/v1/cuda_statistical_release_qualification.json`; verify it CPU-only with `tools/verify_cuda_statistical_release_qualification.py`.
 
 CUDA result provenance is restricted to `cuda-uuid:<UUID.hex()>` and `cuda-source-sha256:<approved digest>`. Host-side validation, canonical case hashing, and Philox key derivation remain authoritative.
 

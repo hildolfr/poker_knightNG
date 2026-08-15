@@ -2,7 +2,7 @@
 
 ## Current status
 
-**PASS — deterministic CPU and explicit CUDA engines qualified.** The qualified source identity for the CUDA run is `c2b3eb96413d17194a85144491c71539a4818452`; this later documentation checkpoint records that already-completed run and does not relabel itself as the wheel's source.
+**PASS — deterministic CPU and explicit CUDA engines qualified.** The current qualified CUDA source identity is `7fb617b900c06102caafe240ff95afe7fef2aa58`; this closeout records that already-completed run and does not relabel itself as the wheel's source.
 
 Fast verification commands:
 
@@ -15,19 +15,19 @@ uv run python tools/verify_cuda_release_qualification.py
 
 ## Phase 5 CUDA release qualification
 
-The compact public record is `cuda_release_qualification.json`, bound by `manifests/cuda_release_qualification.sha256` and verified by `tools/verify_cuda_release_qualification.py`. The canonical private evidence for run `phase5-c2b3eb9-final2` has SHA-256:
+The compact public record is `cuda_release_qualification.json`, bound by `manifests/cuda_release_qualification.sha256` and verified by `tools/verify_cuda_release_qualification.py`. The canonical private evidence for run `phase6c-opt-7fb617b-5b3` has SHA-256:
 
 ```text
-9e2edef60ec2a890b970ef83a8c114af0f56e74f7f0bf1c7e20c21e84ae5178d
+295fb7629dc53d956f933b2dbc2cd37a1142d52d0c4bf71762e534d79272132d
 ```
 
 The approved CUDA source closure has SHA-256:
 
 ```text
-d011e0f5c4db4d12fcb5240b5996f0911af7f153c7942f16772f871917ca5263
+8da8349bed65e782a18d29f83de884341b3838f40c1e83904d07860c2c4ade5a
 ```
 
-The wheel-installed qualification used Python 3.13.15, `cupy-cuda13x==14.1.1`, CUDA runtime 13.2, CUDA toolkit 13.3, and compute capability 12.0. It required at least 2 GiB free device memory and recorded 13,529,776,128 bytes before and after the run.
+The wheel-installed qualification used Python 3.13.15, `cupy-cuda13x==14.1.1`, CUDA runtime 13.2, CUDA toolkit 13.3, and compute capability 12.0. Its admission policy required at least 2 GiB free device memory; volatile free-memory snapshots remain private.
 
 Acceptance gates:
 
@@ -35,7 +35,7 @@ Acceptance gates:
 - wheel, sdist, `METADATA`, `RECORD`, installed-byte closure, source closure, lockfile, seed bank, and seed-manifest binding;
 - all three committed seed-bank vectors equal across authoritative CPU, CUDA, and frozen aggregates;
 - distinct cold, warm-cache, and forced-PTX worker paths agree exactly;
-- JUnit: 607 total, 605 passed, 2 skipped, 0 failures, 0 errors;
+- JUnit: 799 total, 791 passed, 8 skipped, 0 failures, 0 errors;
 - Compute Sanitizer `memcheck`: `ERROR SUMMARY: 0 errors`;
 - Compute Sanitizer `racecheck`: `RACECHECK SUMMARY: 0 hazards displayed (0 errors, 0 warnings)`;
 - Compute Sanitizer `initcheck`: `ERROR SUMMARY: 0 errors`;
@@ -48,7 +48,7 @@ This qualification does **not** change routing: `solve()` remains CPU-default an
 
 ## Phase 5C statistical qualification
 
-**PASS — executed source `f5b31a0cb94e6139cb81be2f013d9d6c44017d98`.** The identity-bound private evidence SHA-256 is `18782f307c424b7f94a363892324aab2ae8b108e4bb579ed754cf407b049a793`. All four frozen batch geometries matched their exact kernel-call plans and complete CPU/frozen integer aggregate; every preregistered Wilson/Hoeffding gate passed and rejection count was zero.
+**PASS — executed source `7fb617b900c06102caafe240ff95afe7fef2aa58`.** The identity-bound private evidence SHA-256 is `27bf23106e44e399fb5157d1c61891852f9d9ce0f32d2504dc6f490271a24017`. All four frozen batch geometries matched their exact kernel-call plans and complete CPU/frozen integer aggregate; every preregistered Wilson/Hoeffding gate passed and rejection count was zero.
 
 The privacy-safe public record is `cuda_statistical_release_qualification.json`. Verify it without CuPy or GPU access:
 

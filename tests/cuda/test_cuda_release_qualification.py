@@ -12,11 +12,6 @@ from pathlib import Path
 import pytest
 
 ROOT = Path(__file__).resolve().parents[2]
-_candidate_spec = importlib.util.spec_from_file_location("_candidate_lifecycle_phase5b", ROOT / "tools/candidate_qualification_lifecycle.py")
-assert _candidate_spec is not None and _candidate_spec.loader is not None
-_candidate = importlib.util.module_from_spec(_candidate_spec)
-_candidate_spec.loader.exec_module(_candidate)
-CANDIDATE_CHECKOUT = _candidate.candidate_authority_pending(ROOT)
 TOOL = ROOT / "tools" / "verify_cuda_release_qualification.py"
 RECORD = ROOT / "validation" / "holdem" / "v1" / "cuda_release_qualification.json"
 
@@ -29,7 +24,6 @@ def load_tool():
     return module
 
 
-@pytest.mark.skipif(CANDIDATE_CHECKOUT, reason="candidate awaits Phase 5B authority closeout")
 def test_committed_cuda_qualification_record_verifies_strictly() -> None:
     assert TOOL.is_file() and RECORD.is_file()
     tool = load_tool()
@@ -42,7 +36,7 @@ def test_public_docs_state_current_cpu_cuda_and_qualification_boundaries() -> No
     for required in (
         "CPUReferenceEngine",
         "CUDAEngine",
-        "c2b3eb96413d17194a85144491c71539a4818452",
+        "7fb617b900c06102caafe240ff95afe7fef2aa58",
         "cuda_release_qualification.json",
         "`solve()` remains CPU-only",
     ):
@@ -55,6 +49,7 @@ def test_public_docs_state_current_cpu_cuda_and_qualification_boundaries() -> No
         "Phase 4 — explicit CUDA engine: COMPLETE",
         "Phase 5A — deterministic GPU qualification harness: COMPLETE",
         "Phase 5B — qualification publication: COMPLETE",
+        "7fb617b900c06102caafe240ff95afe7fef2aa58",
     ):
         assert required in specification
 
@@ -62,8 +57,8 @@ def test_public_docs_state_current_cpu_cuda_and_qualification_boundaries() -> No
     for required in (
         "cuda_release_qualification.json",
         "verify_cuda_release_qualification.py",
-        "9e2edef60ec2a890b970ef83a8c114af0f56e74f7f0bf1c7e20c21e84ae5178d",
-        "d011e0f5c4db4d12fcb5240b5996f0911af7f153c7942f16772f871917ca5263",
+        "295fb7629dc53d956f933b2dbc2cd37a1142d52d0c4bf71762e534d79272132d",
+        "8da8349bed65e782a18d29f83de884341b3838f40c1e83904d07860c2c4ade5a",
     ):
         assert required in qualification
 
@@ -100,7 +95,11 @@ def test_public_record_and_docs_contain_no_private_runtime_inventory() -> None:
         ROOT / "src/poker_knight_ng/README.md",
         ROOT / "validation/holdem/v1/QUALIFICATION.md",
     )
-    forbidden = ("/home/", "/tmp/", "desktop-drizzt", "compute_applications", "used_memory_mib", "power_draw_w")
+    forbidden = (
+        "/home/", "/tmp/", "desktop-drizzt", "compute_applications",
+        "used_memory_mib", "power_draw_w", "memory_free_before_bytes",
+        "memory_free_after_bytes", "15,630,073,856",
+    )
     for path in public_paths:
         text = path.read_text(encoding="utf-8")
         assert not any(token in text for token in forbidden)
@@ -109,9 +108,10 @@ def test_public_record_and_docs_contain_no_private_runtime_inventory() -> None:
 def test_source_bindings_are_read_from_recorded_commit_not_later_docs() -> None:
     tool = load_tool()
     record = tool.strict_json(RECORD.read_bytes())
-    historical = record["source"]["bindings"]["validation/holdem/v1/manifests/rng_seed_bank.sha256"]
-    current = tool.sha256(ROOT / "validation/holdem/v1/manifests/rng_seed_bank.sha256")
-    assert current != historical
+    relative = "validation/holdem/v1/manifests/rng_seed_bank.sha256"
+    historical = record["source"]["bindings"][relative]
+    blobs = tool._source_blobs(ROOT, record["source"]["git_sha"])
+    assert historical == tool.hashlib.sha256(blobs[relative]).hexdigest()
     tool._verify_record(record, ROOT)
 
 

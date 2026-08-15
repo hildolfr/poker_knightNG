@@ -283,16 +283,13 @@ new baseline rather than proof of improvement.
 
 ### Preregistered direct seven-card evaluator candidate
 
-This section defines an unqualified source candidate. Its source checkpoint may
-be published solely to provide the immutable pre-GPU identity required by the
-Phase 5 qualification workflow; the published Phase 5 authorities continue to
-bind the prior implementation and are expected to reject the candidate checkout
-until a later evidence closeout replaces them. Publication of the source
-checkpoint is not release qualification, benchmark admission, or acceptance.
-For this exact candidate digest, routine pytest skips only the five assertions
-that require the historical Phase 5 authorities to match the live checkout; the
-standalone Phase 5B and Phase 5C verifiers must still fail until closeout, while
-the published baseline's historical public projection remains verifiable.
+The source candidate and its exact wheel have completed Phase 5B release and
+Phase 5C statistical qualification. Both privacy-safe public authority records,
+their full manifests, and their CPU-only verifiers bind executed source
+`7fb617b900c06102caafe240ff95afe7fef2aa58` and CUDA closure
+`8da8349bed65e782a18d29f83de884341b3838f40c1e83904d07860c2c4ade5a`.
+Qualification makes the candidate eligible for the preregistered comparison; it
+does not itself establish a performance improvement or acceptance.
 
 The published baseline selects the simulation stage as the only optimization
 target: at 1,000,000 trials it accounts for 94.65% of the summed instrumented

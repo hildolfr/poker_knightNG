@@ -27,13 +27,13 @@ QUALIFICATION_FILES = {
     "phase5c_manifest": "validation/holdem/v1/manifests/cuda_statistical_release_qualification.sha256",
 }
 IMMUTABLE_QUALIFICATION_SHA256 = {
-    "tools/verify_cuda_release_qualification.py": "5cd551c91a3a375d918898bde59c2c89e1ad38a074fbe08c8ee39afcb42e57b6",
-    "tools/verify_cuda_statistical_release_qualification.py": "17308df0575d5b77524b2e84ebf21bf2c4a008c11a8562de8ab257422247e36d",
-    "validation/holdem/v1/cuda_release_qualification.json": "4fd724d4ae4b3e81db8f89279d8344adf78d36ad4975c3963b1a1884f37fb3f4",
-    "validation/holdem/v1/manifests/cuda_release_qualification.sha256": "9d9da3e526a1dc6734d46a1ea3b8f8a54f2838e775187271efba9f690ef15a1d",
-    "validation/holdem/v1/cuda_statistical_release_qualification.json": "be01bcc0cdb91e887d77e16dbbc2c663e55595847efb94c2e51abecc91d0213b",
-    "validation/holdem/v1/manifests/cuda_statistical_release_qualification.sha256": "978a1226db823ca63cf35f904cebce3724811c0677ee6acbdc343e2ea0caf57e",
-    "src/poker_knight_ng/_cuda_runtime.py": "efbf7ebf0a0069beb62904cad56ce7ed363be79fc724bc9e6e8f7fae04e3273e",
+    "tools/verify_cuda_release_qualification.py": "e5357cac5e56d0f7d464ee4229704e9d8d0ab37d3cb293492292acb432c4ec86",
+    "tools/verify_cuda_statistical_release_qualification.py": "b344a3611fc75c00a58dc3cbb03da2c827a8c27f4ce0ab181ada489281d5dc02",
+    "validation/holdem/v1/cuda_release_qualification.json": "e4318172e75397ce845b690105ffa32514d33428bf5d8ac8dd796607b660fba9",
+    "validation/holdem/v1/manifests/cuda_release_qualification.sha256": "507676c0f05654de47a03b3042eb34069663b2f54e5746718fe237616cb9aed7",
+    "validation/holdem/v1/cuda_statistical_release_qualification.json": "e50cdda0917306e3f82a8a0af4461bcfe4520278597b38750be232d7f362d641",
+    "validation/holdem/v1/manifests/cuda_statistical_release_qualification.sha256": "73835dcefd31ed4e475a09538c0c35922434e1da87157dfcee09b18d1ae5c82d",
+    "src/poker_knight_ng/_cuda_runtime.py": "95a95270b5fc4e7e9ff3109931bb4b724f7afdb01b163c946a1856cba5c2d148",
 }
 SCHEMA_PATH = Path(__file__).parents[1] / "validation/holdem/v1/cuda_benchmark_private.schema.json"
 _ALLOWED_KEYWORDS = {
