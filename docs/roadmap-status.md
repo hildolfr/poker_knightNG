@@ -107,8 +107,9 @@ silently approximated through a v1 interface.
 | PyPI publication | **Untouched** | No package release has been published |
 | GitHub release | **Untouched** | No GitHub release exists |
 | Revival/release tag | **Untouched** | Only the preserved legacy tag exists |
-| Automated CI | **Untouched** | No repository workflow is present |
-| Automated release pipeline | **Untouched** | No build, sign, or publish workflow exists |
+| Automated CPU CI | **Implemented; remote proof pending** | Pinned read-only workflow now covers full tests, authorities, package build, and isolated wheel smoke test; it is not complete until the exact branch run passes |
+| Release procedure | **Implemented** | `docs/release-process.md` freezes approval, history-preservation, privacy, publication, and rollback gates |
+| Automated release pipeline | **Untouched** | No sign or publish workflow exists |
 | Network deployment | **Untouched** | No long-running API service has been built or deployed |
 | Production observability | **Untouched** | Network-service health, metrics, and operator alerts remain future work |
 | Security exposure review | **Not started** | Service threat modelling begins with Phase 7A |

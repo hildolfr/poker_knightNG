@@ -1,0 +1,70 @@
+name: CPU verification
+
+on:
+  push:
+    branches:
+      - main
+      - "revival/**"
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: "cpu-verification-${{ github.workflow }}-${{ github.ref }}"
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      PYTHONHASHSEED: "0"
+    steps:
+      - name: Check out complete authority history
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Install Python 3.13
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.13"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+        with:
+          version: "0.11.6"
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+
+      - name: Synchronize frozen development environment
+        run: uv sync --frozen --group dev
+
+      - name: Run maintained test suite
+        run: uv run pytest -q
+
+      - name: Verify deterministic authorities
+        run: |
+          uv run python tools/generate_oracle_fixtures.py --verify
+          uv run python tools/qualify_seven_card_corpus.py --verify
+          uv run python tools/generate_rng_seed_bank.py --verify
+          uv run python tools/verify_cuda_release_qualification.py
+          uv run python tools/verify_cuda_statistical_release_qualification.py
+          uv run python tools/project_cuda_benchmark_baseline.py verify \
+            validation/holdem/v1/cuda_benchmark_baseline.json \
+            --manifest validation/holdem/v1/manifests/cuda_benchmark_baseline.sha256 \
+            --repo-root "$PWD" \
+            --source-commit 71393540fefba4b987a446e0d2ec954e72bbe2e2
+
+      - name: Build distribution artifacts
+        run: uv build --out-dir ci-dist
+
+      - name: Smoke-test exact wheel in isolated environment
+        run: |
+          uv venv --python 3.13 .ci-wheel-venv
+          uv pip install --python .ci-wheel-venv/bin/python \
+            ci-dist/poker_knight_ng-0.1.0-py3-none-any.whl
+          .ci-wheel-venv/bin/python -I -c \
+            "import poker_knight_ng; assert poker_knight_ng.__version__ == '0.1.0'"
+          .ci-wheel-venv/bin/poker-knight-ng --help
