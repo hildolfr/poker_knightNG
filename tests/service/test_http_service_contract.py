@@ -195,6 +195,9 @@ def test_spec_and_roadmap_do_not_claim_an_implemented_listener() -> None:
     phase7a = next(line for line in roadmap.splitlines() if line.startswith("| Phase 7A"))
     phase7b = next(line for line in roadmap.splitlines() if line.startswith("| Phase 7B"))
     phase7c = next(line for line in roadmap.splitlines() if line.startswith("| Phase 7C"))
-    assert "**Implemented**" in phase7a and "ADR 0005" in phase7a
+    assert "**Complete**" in phase7a
+    assert "`cd994d45516b257515c03f6225b4242babde0cc5`" in phase7a
+    assert "https://github.com/hildolfr/poker_knightNG/actions/runs/31862456329" in phase7a
+    assert "ADR 0005" in phase7a
     assert "**Untouched**" in phase7b
     assert "**Not started**" in phase7c
