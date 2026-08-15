@@ -16,6 +16,9 @@ Current Phase 7B scope contains:
 - frozen request-bound result serialization and closed operational/internal problem mapping;
 - async handoff to one directly started non-daemon worker thread only after event-loop admission, with no executor-side solve queue;
 - cancellation-aware polling and join drain that keeps admission held until non-cancellable engine work ends;
+- listener-free one-request session coordination across framing, routing, adaptation, execution, canonical response, send, and close boundaries;
+- reload-stable weak-identity ownership that admits exactly one coordinator for each session object;
+- peer-gone response discard after admitted solve completion without engine cancellation;
 - empty health and transport-failure envelopes;
 - canonical JSON solve envelopes with fixed cache, security, correlation, length, and close headers; and
 - exact request-ID generation with fail-closed emergency-ID signaling.

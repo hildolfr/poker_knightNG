@@ -62,7 +62,8 @@ def test_ci_verifies_frozen_service_environment_and_tests() -> None:
         'poker_knight_ng_service.connection, '
         'poker_knight_ng_service.execution, '
         'poker_knight_ng_service.framing, '
-        'poker_knight_ng_service.responses, poker_knight_ng_service.routing"'
+        'poker_knight_ng_service.responses, poker_knight_ng_service.routing, '
+        'poker_knight_ng_service.session"'
         in workflow
     )
 
@@ -167,6 +168,21 @@ def test_phase7b_source_has_exact_engine_authority_and_no_listener() -> None:
             "from __future__ import annotations",
             "from enum import Enum",
             "from .framing import AdmittedRequest, TransportFailure",
+        ),
+        "session.py": (
+            "from __future__ import annotations",
+            "import json",
+            "from collections.abc import Callable",
+            "from threading import Lock",
+            "from typing import Protocol",
+            "from weakref import ReferenceType, ref",
+            "from poker_knight_ng.contract.errors import ContractProblem, PROBLEM_POLICIES, problem",
+            "from .adapter import adapt_solve_request",
+            "from .async_execution import execute_solve_async",
+            "from .connection import AsyncReader, read_admitted_request",
+            "from .framing import AdmittedRequest, TransportFailure",
+            "from .responses import EMERGENCY_REQUEST_ID, RequestIdGenerationFailure, generate_request_id, serialize_health_response, serialize_json_response, serialize_transport_failure",
+            "from .routing import Route, select_route",
         ),
     }
     observed_imports: dict[str, tuple[str, ...]] = {}
