@@ -44,6 +44,24 @@ jobs:
       - name: Run maintained test suite
         run: uv run pytest -q
 
+      - name: Reproduce no-listener HTTP parser selection
+        run: |
+          wheel="$RUNNER_TEMP/h11-0.16.0-py3-none-any.whl"
+          venv="$RUNNER_TEMP/phase7b-h11-venv"
+          output="$(mktemp)"
+          trap 'rm -f "$output"' EXIT
+          curl --fail --silent --show-error --location \
+            https://files.pythonhosted.org/packages/04/4b/29cac41a4d98d144bf5f6d33995617b185d14b22401f75ca86f384e87ff1/h11-0.16.0-py3-none-any.whl \
+            --output "$wheel"
+          test "$(stat -c %s "$wheel")" = "37515"
+          printf '%s  %s\n' \
+            63cf8bbe7522de3bf65932fda1d9c2772064ffb3dae62d55932da54b31cb6c86 \
+            "$wheel" | sha256sum --check -
+          uv venv --python 3.13 "$venv"
+          uv pip install --python "$venv/bin/python" "$wheel"
+          "$venv/bin/python" tools/spikes/phase7b_h11_probe.py >"$output"
+          diff -u validation/service/v1/phase7b_runtime_spike.json "$output"
+
       - name: Verify deterministic authorities
         run: |
           uv run python tools/generate_oracle_fixtures.py --verify

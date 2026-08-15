@@ -199,5 +199,6 @@ def test_spec_and_roadmap_do_not_claim_an_implemented_listener() -> None:
     assert "`cd994d45516b257515c03f6225b4242babde0cc5`" in phase7a
     assert "https://github.com/hildolfr/poker_knightNG/actions/runs/31862456329" in phase7a
     assert "ADR 0005" in phase7a
-    assert "**Untouched**" in phase7b
+    assert "**Active**" in phase7b
+    assert "no listener" in phase7b.lower()
     assert "**Not started**" in phase7c
