@@ -62,9 +62,12 @@ def test_packaging_adr_and_roadmap_preserve_no_listener_boundary() -> None:
     assert "31889215662" in phase7b
     assert "1c9a30b401c55b71a0788729bf2f67f061a65295" in phase7b
     assert "31890879197" in phase7b
+    assert "b119c3d800ad667f2a82713799ba7f408772c085" in phase7b
+    assert "31892394345" in phase7b
     assert "ADR 0006" in phase7b
     assert "incremental reader" in phase7b
     assert "raw framing" in phase7b
+    assert "route and response-envelope" in phase7b
     assert "no listener" in phase7b.lower()
 
 
