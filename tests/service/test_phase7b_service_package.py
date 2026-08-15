@@ -58,6 +58,7 @@ def test_ci_verifies_frozen_service_environment_and_tests() -> None:
     assert (
         '"$service_venv/bin/python" -I -c "import '
         'poker_knight_ng_service.adapter, poker_knight_ng_service.admission, '
+        'poker_knight_ng_service.async_execution, '
         'poker_knight_ng_service.connection, '
         'poker_knight_ng_service.execution, '
         'poker_knight_ng_service.framing, '
@@ -121,6 +122,15 @@ def test_phase7b_source_has_exact_engine_authority_and_no_listener() -> None:
             "from threading import Lock",
             "from poker_knight_ng.contract.errors import problem",
         ),
+        "async_execution.py": (
+            "from __future__ import annotations",
+            "import asyncio",
+            "from threading import Event, Thread",
+            "from poker_knight_ng.contract.errors import ContractProblem, problem",
+            "from .adapter import AdaptedSolveRequest",
+            "from .admission import SolveLease, admit_solve",
+            "from .execution import _execute_admitted, _trusted_snapshot",
+        ),
         "connection.py": (
             "from __future__ import annotations",
             "import asyncio",
@@ -134,7 +144,7 @@ def test_phase7b_source_has_exact_engine_authority_and_no_listener() -> None:
             "from poker_knight_ng.contract.errors import problem",
             "from poker_knight_ng.engine import CPUReferenceEngine, CUDAEngine",
             "from .adapter import AdaptedSolveRequest",
-            "from .admission import admit_solve",
+            "from .admission import SolveLease, admit_solve",
             "from .routing import Route",
         ),
         "framing.py": (
@@ -159,6 +169,7 @@ def test_phase7b_source_has_exact_engine_authority_and_no_listener() -> None:
     observed_imports: dict[str, tuple[str, ...]] = {}
     forbidden_calls: list[str] = []
     engine_calls: list[tuple[str, str]] = []
+    async_calls: list[tuple[str, str]] = []
     dunder_accesses: list[tuple[str, str]] = []
     forbidden_name_calls = {
         "__import__",
@@ -178,12 +189,17 @@ def test_phase7b_source_has_exact_engine_authority_and_no_listener() -> None:
         "vars",
     }
     forbidden_attribute_calls = {
+        "call_soon_threadsafe",
+        "create_task",
         "create_unix_server",
         "getattr",
         "import_module",
+        "run_in_executor",
+        "shield",
         "solve_cuda",
         "start_next_cycle",
         "start_unix_server",
+        "to_thread",
     }
     for path in sorted((SERVICE / "src/poker_knight_ng_service").glob("*.py")):
         tree = ast.parse(path.read_text("utf-8"))
@@ -220,6 +236,22 @@ def test_phase7b_source_has_exact_engine_authority_and_no_listener() -> None:
             and isinstance(node.func, ast.Attribute)
             and node.func.attr == "solve"
         )
+        async_calls.extend(
+            (path.name, node.func.id)
+            for node in ast.walk(tree)
+            if path.name == "async_execution.py"
+            and isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Name)
+            and node.func.id == "Thread"
+        )
+        async_calls.extend(
+            (path.name, ast.unparse(node.func))
+            for node in ast.walk(tree)
+            if path.name == "async_execution.py"
+            and isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Attribute)
+            and node.func.attr in {"is_alive", "is_set", "join", "set", "sleep", "start"}
+        )
         dunder_accesses.extend(
             (ast.unparse(node.value), node.attr)
             for node in ast.walk(tree)
@@ -234,6 +266,18 @@ def test_phase7b_source_has_exact_engine_authority_and_no_listener() -> None:
         ("execution.py", "CPUReferenceEngine"),
         ("execution.py", "CUDAEngine"),
         ("execution.py", "engine.solve"),
+    ]
+    assert async_calls == [
+        ("async_execution.py", "Thread"),
+        ("async_execution.py", "worker.join"),
+        ("async_execution.py", "worker.start"),
+        ("async_execution.py", "done.set"),
+        ("async_execution.py", "done.is_set"),
+        ("async_execution.py", "worker.join"),
+        ("async_execution.py", "worker.is_alive"),
+        ("async_execution.py", "done.is_set"),
+        ("async_execution.py", "asyncio.sleep"),
+        ("async_execution.py", "worker.is_alive"),
     ]
     assert dunder_accesses == [
         ("object", "__new__"),

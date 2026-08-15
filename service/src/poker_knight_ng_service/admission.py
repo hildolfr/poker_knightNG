@@ -20,6 +20,11 @@ class SolveLease:
 
         _release_solve(self)
 
+    def _assert_active(self) -> None:
+        """Fail closed unless this exact lease still owns admission."""
+
+        _assert_active_solve(self)
+
     def __enter__(self) -> SolveLease:
         return self
 
@@ -53,15 +58,22 @@ def _build_admission_api():
                 raise problem("INTERNAL_ERROR")
             active = None
 
-    return acquire, release
+    def assert_active(lease: SolveLease) -> None:
+        with lock:
+            if active is not lease:
+                raise problem("INTERNAL_ERROR")
+
+    return acquire, release, assert_active
 
 
 admit_solve: Callable[[], SolveLease]
 _release_solve: Callable[[SolveLease], None]
+_assert_active_solve: Callable[[SolveLease], None]
 
 try:
     admit_solve  # pyright: ignore[reportUnboundVariable]
     _release_solve  # pyright: ignore[reportUnboundVariable]
+    _assert_active_solve  # pyright: ignore[reportUnboundVariable]
 except NameError:
-    admit_solve, _release_solve = _build_admission_api()
+    admit_solve, _release_solve, _assert_active_solve = _build_admission_api()
 del _build_admission_api

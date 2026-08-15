@@ -117,6 +117,35 @@ def test_busy_rejection_occurs_before_engine_construction(monkeypatch) -> None:
         held.release()
 
 
+@pytest.mark.parametrize("forged", [False, True])
+def test_internal_worker_rejects_inactive_lease_before_construction(
+    monkeypatch,
+    forged: bool,
+) -> None:
+    from poker_knight_ng.contract.errors import ContractProblem
+    from poker_knight_ng_service import execution
+    from poker_knight_ng_service.admission import SolveLease, admit_solve
+
+    constructed = False
+
+    class ForbiddenEngine:
+        def __init__(self) -> None:
+            nonlocal constructed
+            constructed = True
+
+    monkeypatch.setattr(execution, "CPUReferenceEngine", ForbiddenEngine)
+    if forged:
+        lease = object.__new__(SolveLease)
+    else:
+        lease = admit_solve()
+        lease.release()
+
+    with pytest.raises(ContractProblem) as caught:
+        execution._execute_admitted(_adapted(), lease)
+    assert caught.value.code == "INTERNAL_ERROR"
+    assert not constructed
+
+
 @pytest.mark.parametrize(
     "code",
     [

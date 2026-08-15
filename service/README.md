@@ -14,6 +14,8 @@ Current Phase 7B scope contains:
 - an atomic process-global one-solve lease with immediate zero-queue `RESOURCE_EXHAUSTED` rejection;
 - exact CPU/CUDA engine construction and synchronous execution only while that lease is held;
 - frozen request-bound result serialization and closed operational/internal problem mapping;
+- async handoff to one directly started non-daemon worker thread only after event-loop admission, with no executor-side solve queue;
+- cancellation-aware polling and join drain that keeps admission held until non-cancellable engine work ends;
 - empty health and transport-failure envelopes;
 - canonical JSON solve envelopes with fixed cache, security, correlation, length, and close headers; and
 - exact request-ID generation with fail-closed emergency-ID signaling.
@@ -22,4 +24,4 @@ The service distribution owns `h11==0.16.0` through the exact selected wheel URL
 
 The root engine distribution metadata and root lock remain unchanged. Public root import is engine-construction inert; the service's single reviewed execution module selects only `CPUReferenceEngine` or `CUDAEngine` after admission.
 
-No listener, socket activation, asynchronous worker handoff, disconnect lifecycle, structured logging, deployment, or automatic backend routing exists yet. The synchronous execution boundary deliberately adds no service execution timeout or cancellation seam. Those remain later reviewed checkpoints under ADR 0005.
+No listener, socket activation, socket disconnect integration, structured logging, deployment, or automatic backend routing exists yet. The execution boundary deliberately adds no service execution timeout and never cancels admitted engine work. Those remain later reviewed checkpoints under ADR 0005.
