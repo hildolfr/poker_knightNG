@@ -15,7 +15,8 @@ def test_roadmap_status_is_published_and_authority_scoped() -> None:
     assert "Phase 7A" in text and "Not started" in text
     assert "network service" in text
     assert "automatic CUDA routing" in text
-    assert "revival/phase-0-contract" in text
+    assert "`main`" in text
+    assert "15e49a5e8d88bcca6395ec07c02aacf388996ac4" in text
 
 
 def test_roadmap_retains_every_explicitly_deferred_v1_surface() -> None:

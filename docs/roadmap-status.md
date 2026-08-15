@@ -10,15 +10,16 @@ conflicts with a binding authority, the binding authority wins.
 checkboxes, architecture, dependencies, and performance claims are not the
 current roadmap.
 
-**Status baseline:** accepted implementation commit
-`b8cb5f58086b4237aadae6e85e5b0c5d36708748` on
-`revival/phase-0-contract`.
+**Status baseline:** promoted default-branch commit
+`15e49a5e8d88bcca6395ec07c02aacf388996ac4` on `main`.
 
 ## Status meanings
 
 | Status | Meaning |
 |---|---|
 | **Complete** | Implemented, tested, independently reviewed, integrated, pushed, and evidence-bound where required |
+| **Active** | Implemented and currently enabled in the live repository or service state, with bounded evidence where applicable |
+| **Implemented** | The maintained mechanism or procedure exists and is tested, but does not imply an external release or deployment |
 | **Not started** | Authoritative or proposed checkpoint has no approved implementation checkpoint yet |
 | **Untouched** | No implementation or qualification work has begun |
 | **Deferred outside v1** | Deliberately excluded from the v1 contract; a future versioned decision is required |
@@ -98,16 +99,17 @@ silently approximated through a v1 interface.
 
 | Item | Status | Detail |
 |---|---|---|
-| Accepted revival branch | **Complete** | `revival/phase-0-contract` at `b8cb5f58086b4237aadae6e85e5b0c5d36708748` |
-| Full maintained test suite | **Complete** | 796 passed and 3 skipped at the accepted checkpoint |
+| Accepted default branch | **Complete** | `main` at `15e49a5e8d88bcca6395ec07c02aacf388996ac4` |
+| Full maintained test suite | **Complete** | 801 passed and 3 skipped at the promoted checkpoint |
 | CUDA qualification | **Complete** | Exact-wheel GPU and sanitizer evidence published |
 | Performance acceptance | **Complete** | 64.742% lower geometric-mean p50 with no p50 or p95 regressions |
 | Wheel and sdist verification | **Complete** | Fresh artifact installation and content checks passed |
-| Promotion to default `main` | **Not started** | GitHub's default branch remains legacy `main`; revival has not been promoted |
+| Promotion to default `main` | **Complete** | Legacy `main` was fast-forwarded without squash, rebase, or merge commit to exact reviewed SHA `15e49a5e8d88bcca6395ec07c02aacf388996ac4`; [default-branch verification passed](https://github.com/hildolfr/poker_knightNG/actions/runs/31859196286) |
+| Main branch protection | **Active** | Strict required `verify` status, linear history, force-push/deletion denial, and disabled administrator enforcement are captured in the canonical [protection evidence](evidence/main-branch-protection.json) and SHA-256 manifest |
 | PyPI publication | **Untouched** | No package release has been published |
 | GitHub release | **Untouched** | No GitHub release exists |
 | Revival/release tag | **Untouched** | Only the preserved legacy tag exists |
-| Automated CPU CI | **Active** | Exact candidate `71f1592dabd04e21d9b9d71d1eab9ce760809f09` passed the first remote [CPU verification run](https://github.com/hildolfr/poker_knightNG/actions/runs/31858032803); the pinned read-only workflow covers full tests, authorities, package build, and isolated wheel smoke testing |
+| Automated CPU CI | **Active** | Pinned read-only verification passed on the source candidate, final closeout, pull request, and promoted default branch; it covers full tests, authorities, package build, and isolated wheel smoke testing |
 | Release procedure | **Implemented** | `docs/release-process.md` freezes approval, history-preservation, privacy, publication, and rollback gates |
 | Automated release pipeline | **Untouched** | No sign or publish workflow exists |
 | Network deployment | **Untouched** | No long-running API service has been built or deployed |
