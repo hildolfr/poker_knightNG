@@ -26,9 +26,17 @@ def test_service_package_owns_exact_h11_without_root_dependency_drift() -> None:
 
     assert root_project["project"]["dependencies"] == []
     assert 'name = "h11"' not in root_lock
-    assert service_project["project"]["dependencies"] == [f"h11 @ {WHEEL_URL}"]
+    assert service_project["project"]["dependencies"] == [
+        f"h11 @ {WHEEL_URL}",
+        "poker-knight-ng==0.1.0",
+    ]
+    assert service_project["tool"]["uv"]["sources"] == {
+        "poker-knight-ng": {"path": "..", "editable": True}
+    }
     assert f'source = {{ url = "{WHEEL_URL}" }}' in service_lock
     assert f'hash = "sha256:{WHEEL_SHA256}"' in service_lock
+    assert 'name = "poker-knight-ng"' in service_lock
+    assert 'source = { editable = "../" }' in service_lock
 
 
 def test_ci_verifies_frozen_service_environment_and_tests() -> None:
@@ -37,11 +45,20 @@ def test_ci_verifies_frozen_service_environment_and_tests() -> None:
     assert "Verify bounded service package" in workflow
     assert "uv sync --project service --frozen --group dev" in workflow
     assert "uv run --project service --frozen pytest -q service/tests" in workflow
+    assert "uv build --out-dir ci-service-dist" in workflow
     assert "uv build --project service --out-dir ci-service-dist" in workflow
-    assert 'uv pip install --python "$service_venv/bin/python" "$service_wheel"' in workflow
+    assert 'engine_wheel="$(printf \'%s\\n\' ci-service-dist/poker_knight_ng-*.whl)"' in workflow
+    assert 'h11_wheel="$RUNNER_TEMP/h11-0.16.0-py3-none-any.whl"' in workflow
+    assert WHEEL_URL in workflow
+    assert WHEEL_SHA256 in workflow
+    assert "UV_CACHE_DIR=\"$RUNNER_TEMP/phase7b-service-empty-cache\"" in workflow
+    assert "uv pip install --offline --no-deps" in workflow
+    assert '"$h11_wheel" "$engine_wheel" "$service_wheel"' in workflow
+    assert 'uv pip check --python "$service_venv/bin/python"' in workflow
     assert (
         '"$service_venv/bin/python" -I -c "import '
-        'poker_knight_ng_service.connection, poker_knight_ng_service.framing, '
+        'poker_knight_ng_service.adapter, poker_knight_ng_service.connection, '
+        'poker_knight_ng_service.framing, '
         'poker_knight_ng_service.responses, poker_knight_ng_service.routing"'
         in workflow
     )
@@ -71,28 +88,117 @@ def test_packaging_adr_and_roadmap_preserve_no_listener_boundary() -> None:
     assert "no listener" in phase7b.lower()
 
 
-def test_phase7b_source_has_no_listener_or_engine_adapter() -> None:
-    imported_roots: set[str] = set()
-    sources: list[str] = []
+def test_phase7b_source_has_no_listener_or_engine_executor() -> None:
+    expected_imports = {
+        "__init__.py": (),
+        "adapter.py": (
+            "from __future__ import annotations",
+            "import json",
+            "from dataclasses import dataclass",
+            "from typing import Any",
+            "from poker_knight_ng.contract.errors import problem",
+            "from poker_knight_ng.contract.models import EquityRequest",
+            "from .framing import AdmittedRequest",
+            "from .routing import Route, select_route",
+        ),
+        "connection.py": (
+            "from __future__ import annotations",
+            "import asyncio",
+            "from time import monotonic",
+            "from typing import Protocol",
+            "from .framing import AdmittedRequest, TransportFailure, _inspect_request_head, admit_request",
+        ),
+        "framing.py": (
+            "from __future__ import annotations",
+            "from dataclasses import dataclass",
+            "import h11",
+        ),
+        "responses.py": (
+            "from __future__ import annotations",
+            "import json",
+            "import re",
+            "import secrets",
+            "from collections.abc import Callable",
+            "from .framing import TransportFailure, serialize_response",
+        ),
+        "routing.py": (
+            "from __future__ import annotations",
+            "from enum import Enum",
+            "from .framing import AdmittedRequest, TransportFailure",
+        ),
+    }
+    observed_imports: dict[str, tuple[str, ...]] = {}
+    forbidden_calls: list[str] = []
+    dunder_accesses: list[tuple[str, str]] = []
+    forbidden_name_calls = {
+        "CPUReferenceEngine",
+        "CUDAEngine",
+        "__import__",
+        "compile",
+        "create_unix_server",
+        "delattr",
+        "eval",
+        "exec",
+        "getattr",
+        "globals",
+        "locals",
+        "setattr",
+        "solve",
+        "solve_cuda",
+        "start_next_cycle",
+        "start_unix_server",
+        "vars",
+    }
+    forbidden_attribute_calls = {
+        "CPUReferenceEngine",
+        "CUDAEngine",
+        "create_unix_server",
+        "getattr",
+        "import_module",
+        "solve",
+        "solve_cuda",
+        "start_next_cycle",
+        "start_unix_server",
+    }
     for path in sorted((SERVICE / "src/poker_knight_ng_service").glob("*.py")):
-        source = path.read_text("utf-8")
-        sources.append(source)
-        tree = ast.parse(source)
-        imported_roots.update(
-            alias.name.split(".")[0]
+        tree = ast.parse(path.read_text("utf-8"))
+        observed_imports[path.name] = tuple(
+            ast.unparse(node)
             for node in ast.walk(tree)
-            if isinstance(node, ast.Import)
-            for alias in node.names
+            if isinstance(node, (ast.Import, ast.ImportFrom))
         )
-        imported_roots.update(
-            node.module.split(".")[0]
+        forbidden_calls.extend(
+            node.func.id
             for node in ast.walk(tree)
-            if isinstance(node, ast.ImportFrom) and node.module and node.level == 0
+            if isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Name)
+            and node.func.id in forbidden_name_calls
+        )
+        forbidden_calls.extend(
+            node.func.attr
+            for node in ast.walk(tree)
+            if isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Attribute)
+            and node.func.attr in forbidden_attribute_calls
+        )
+        dunder_accesses.extend(
+            (ast.unparse(node.value), node.attr)
+            for node in ast.walk(tree)
+            if isinstance(node, ast.Attribute)
+            and node.attr.startswith("__")
+            and node.attr.endswith("__")
         )
 
-    combined = "\n".join(sources)
-    assert "socket" not in imported_roots
-    assert "poker_knight_ng" not in imported_roots
-    assert "start_unix_server" not in combined
-    assert "create_unix_server" not in combined
-    assert "start_next_cycle" not in combined
+    assert observed_imports == expected_imports
+    assert forbidden_calls == []
+    assert dunder_accesses == [
+        ("object", "__new__"),
+        ("object", "__setattr__"),
+        ("object", "__setattr__"),
+        ("object", "__getattribute__"),
+        ("object", "__getattribute__"),
+        ("object", "__getattribute__"),
+        ("object", "__getattribute__"),
+        ("super()", "__init__"),
+        ("super()", "__init__"),
+    ]

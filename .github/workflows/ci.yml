@@ -50,12 +50,27 @@ jobs:
         run: |
           uv sync --project service --frozen --group dev
           uv run --project service --frozen pytest -q service/tests
+          uv build --out-dir ci-service-dist
           uv build --project service --out-dir ci-service-dist
+          engine_wheel="$(printf '%s\n' ci-service-dist/poker_knight_ng-*.whl)"
           service_wheel="$(printf '%s\n' ci-service-dist/poker_knight_ng_service-*.whl)"
+          h11_wheel="$RUNNER_TEMP/h11-0.16.0-py3-none-any.whl"
+          curl --fail --silent --show-error --location \
+            https://files.pythonhosted.org/packages/04/4b/29cac41a4d98d144bf5f6d33995617b185d14b22401f75ca86f384e87ff1/h11-0.16.0-py3-none-any.whl \
+            --output "$h11_wheel"
+          test "$(stat -c %s "$h11_wheel")" = "37515"
+          printf '%s  %s\n' \
+            63cf8bbe7522de3bf65932fda1d9c2772064ffb3dae62d55932da54b31cb6c86 \
+            "$h11_wheel" | sha256sum --check -
           service_venv="$RUNNER_TEMP/phase7b-service-wheel-venv"
+          UV_CACHE_DIR="$RUNNER_TEMP/phase7b-service-empty-cache"
+          export UV_CACHE_DIR
+          rm -rf "$UV_CACHE_DIR"
           uv venv --python 3.13 "$service_venv"
-          uv pip install --python "$service_venv/bin/python" "$service_wheel"
-          "$service_venv/bin/python" -I -c "import poker_knight_ng_service.connection, poker_knight_ng_service.framing, poker_knight_ng_service.responses, poker_knight_ng_service.routing"
+          uv pip install --offline --no-deps --python "$service_venv/bin/python" \
+            "$h11_wheel" "$engine_wheel" "$service_wheel"
+          uv pip check --python "$service_venv/bin/python"
+          "$service_venv/bin/python" -I -c "import poker_knight_ng_service.adapter, poker_knight_ng_service.connection, poker_knight_ng_service.framing, poker_knight_ng_service.responses, poker_knight_ng_service.routing"
 
       - name: Reproduce no-listener HTTP parser selection
         run: |

@@ -4,16 +4,19 @@ This separate distribution contains the bounded private HTTP/1.1 service runtime
 
 Current Phase 7B scope contains:
 
-- raw request admission and response framing in `framing.py`;
-- one-request incremental assembly in `connection.py`;
-- one absolute five-second monotonic budget for the header and a fresh five-second budget for a declared body;
-- bounded reads of at most the remaining payload plus one surplus-detection byte;
-- a required nonblocking `read_buffered(1)` probe before semantic admission;
-- the exact three-route table in `routing.py`, with unknown paths and wrong methods closed as empty 404/405 transport failures; and
-- fixed health, transport-failure and canonical JSON response envelopes in `responses.py`, including closed status sets and correlation-ID binding.
+- raw request admission and exact single-request h11 parsing;
+- incremental header/body reads with separate absolute monotonic deadlines;
+- deterministic rejection of malformed, oversized, timed-out, surplus, pipelined, upgraded, transfer-encoded, or unsupported requests;
+- exact route and method selection for `/healthz`, `/v1/solve`, and `/v1/solve-cuda`;
+- strict UTF-8 JSON decoding with duplicate-member, BOM, non-finite, root, and trailing-document enforcement;
+- semantic parsing through the frozen root `EquityRequest.parse()` contract;
+- the 1,000,000-trial service ceiling and explicit CPU/CUDA route/backend binding;
+- empty health and transport-failure envelopes;
+- canonical JSON solve envelopes with fixed cache, security, correlation, length, and close headers; and
+- exact request-ID generation with fail-closed emergency-ID signaling.
 
-The reader contract is intentionally abstract. `read(limit)` waits for at most `limit` bytes; `read_buffered(limit)` returns only bytes already buffered and never waits.
+The service distribution owns `h11==0.16.0` through the exact selected wheel URL and lockfile SHA-256. It now also owns an exact `poker-knight-ng==0.1.0` dependency as authorized by ADR 0006. Development resolves that dependency from the repository root. CI hash-verifies the selected h11 wheel, builds the engine and service wheels, and installs exactly those three local artifacts offline with an empty cache before checking dependency consistency and isolated imports.
 
-The package does **not** contain a socket listener, socket activation, semantic request adapter, engine adapter, engine invocation or deployment configuration.
+The root engine distribution and root lock remain unchanged. Service source directly imports only the frozen root contract model/problem modules and does not call CPU/CUDA executor APIs.
 
-The service uses the exact `h11 0.16.0` wheel selected by Spike 001. Its independent lock preserves the qualified root engine package and root lock byte-for-byte.
+No listener, socket activation, resource-admission token, engine invocation, disconnect lifecycle, structured logging, deployment, or automatic backend routing exists yet. Those remain later reviewed checkpoints under ADR 0005.

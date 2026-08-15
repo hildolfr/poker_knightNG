@@ -47,11 +47,29 @@ wheels = [
 ]
 
 [[package]]
+name = "poker-knight-ng"
+version = "0.1.0"
+source = { editable = "../" }
+
+[package.metadata]
+requires-dist = [{ name = "cupy-cuda13x", marker = "extra == 'gpu-cu13'", specifier = "==14.1.1" }]
+provides-extras = ["gpu-cu13"]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "build", specifier = ">=1.2.2" },
+    { name = "jsonschema", specifier = ">=4.23,<5" },
+    { name = "pytest", specifier = ">=8.3" },
+    { name = "treys", specifier = "==0.1.8" },
+]
+
+[[package]]
 name = "poker-knight-ng-service"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "h11" },
+    { name = "poker-knight-ng" },
 ]
 
 [package.dev-dependencies]
@@ -60,7 +78,10 @@ dev = [
 ]
 
 [package.metadata]
-requires-dist = [{ name = "h11", url = "https://files.pythonhosted.org/packages/04/4b/29cac41a4d98d144bf5f6d33995617b185d14b22401f75ca86f384e87ff1/h11-0.16.0-py3-none-any.whl" }]
+requires-dist = [
+    { name = "h11", url = "https://files.pythonhosted.org/packages/04/4b/29cac41a4d98d144bf5f6d33995617b185d14b22401f75ca86f384e87ff1/h11-0.16.0-py3-none-any.whl" },
+    { name = "poker-knight-ng", editable = "../" },
+]
 
 [package.metadata.requires-dev]
 dev = [{ name = "pytest", specifier = ">=8.3" }]
