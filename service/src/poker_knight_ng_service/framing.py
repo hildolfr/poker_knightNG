@@ -25,16 +25,39 @@ class AdmittedRequest:
     body: bytes
 
 
-def serialize_response(*, status: int, body: bytes) -> bytes:
+def serialize_response(
+    *,
+    status: int,
+    body: bytes,
+    headers: tuple[tuple[bytes, bytes], ...] = (),
+) -> bytes:
     """Serialize one bounded response that always closes the connection."""
 
     connection = h11.Connection(h11.SERVER)
-    headers = [
+    reserved = {
+        b"connection",
+        b"content-length",
+        b"trailer",
+        b"transfer-encoding",
+        b"upgrade",
+    }
+    seen: set[bytes] = set()
+    for name, _ in headers:
+        normalized = name.lower()
+        if normalized in reserved:
+            raise ValueError("reserved response header")
+        if normalized in seen:
+            raise ValueError("duplicate response header")
+        seen.add(normalized)
+    response_headers = [
+        *headers,
         (b"Connection", b"close"),
         (b"Content-Length", str(len(body)).encode("ascii")),
     ]
     chunks = [
-        connection.send(h11.Response(status_code=status, headers=headers, reason=b"")),
+        connection.send(
+            h11.Response(status_code=status, headers=response_headers, reason=b"")
+        ),
         connection.send(h11.Data(data=body)),
         connection.send(h11.EndOfMessage()),
     ]

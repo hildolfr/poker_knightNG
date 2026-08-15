@@ -55,7 +55,7 @@ jobs:
           service_venv="$RUNNER_TEMP/phase7b-service-wheel-venv"
           uv venv --python 3.13 "$service_venv"
           uv pip install --python "$service_venv/bin/python" "$service_wheel"
-          "$service_venv/bin/python" -I -c "import poker_knight_ng_service.connection, poker_knight_ng_service.framing"
+          "$service_venv/bin/python" -I -c "import poker_knight_ng_service.connection, poker_knight_ng_service.framing, poker_knight_ng_service.responses, poker_knight_ng_service.routing"
 
       - name: Reproduce no-listener HTTP parser selection
         run: |

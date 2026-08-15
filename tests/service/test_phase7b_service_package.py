@@ -41,7 +41,8 @@ def test_ci_verifies_frozen_service_environment_and_tests() -> None:
     assert 'uv pip install --python "$service_venv/bin/python" "$service_wheel"' in workflow
     assert (
         '"$service_venv/bin/python" -I -c "import '
-        'poker_knight_ng_service.connection, poker_knight_ng_service.framing"'
+        'poker_knight_ng_service.connection, poker_knight_ng_service.framing, '
+        'poker_knight_ng_service.responses, poker_knight_ng_service.routing"'
         in workflow
     )
 
