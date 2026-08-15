@@ -39,7 +39,11 @@ def test_ci_verifies_frozen_service_environment_and_tests() -> None:
     assert "uv run --project service --frozen pytest -q service/tests" in workflow
     assert "uv build --project service --out-dir ci-service-dist" in workflow
     assert 'uv pip install --python "$service_venv/bin/python" "$service_wheel"' in workflow
-    assert '"$service_venv/bin/python" -I -c "import poker_knight_ng_service.framing"' in workflow
+    assert (
+        '"$service_venv/bin/python" -I -c "import '
+        'poker_knight_ng_service.connection, poker_knight_ng_service.framing"'
+        in workflow
+    )
 
 
 def test_packaging_adr_and_roadmap_preserve_no_listener_boundary() -> None:
@@ -60,22 +64,28 @@ def test_packaging_adr_and_roadmap_preserve_no_listener_boundary() -> None:
     assert "no listener" in phase7b.lower()
 
 
-def test_phase7b_a_source_has_no_listener_or_engine_adapter() -> None:
-    source = (SERVICE / "src/poker_knight_ng_service/framing.py").read_text("utf-8")
-    tree = ast.parse(source)
-    imported_roots = {
-        alias.name.split(".")[0]
-        for node in ast.walk(tree)
-        if isinstance(node, ast.Import)
-        for alias in node.names
-    }
-    imported_roots.update(
-        node.module.split(".")[0]
-        for node in ast.walk(tree)
-        if isinstance(node, ast.ImportFrom) and node.module
-    )
+def test_phase7b_source_has_no_listener_or_engine_adapter() -> None:
+    imported_roots: set[str] = set()
+    sources: list[str] = []
+    for path in sorted((SERVICE / "src/poker_knight_ng_service").glob("*.py")):
+        source = path.read_text("utf-8")
+        sources.append(source)
+        tree = ast.parse(source)
+        imported_roots.update(
+            alias.name.split(".")[0]
+            for node in ast.walk(tree)
+            if isinstance(node, ast.Import)
+            for alias in node.names
+        )
+        imported_roots.update(
+            node.module.split(".")[0]
+            for node in ast.walk(tree)
+            if isinstance(node, ast.ImportFrom) and node.module and node.level == 0
+        )
 
+    combined = "\n".join(sources)
     assert "socket" not in imported_roots
-    assert "asyncio" not in imported_roots
     assert "poker_knight_ng" not in imported_roots
-    assert "start_next_cycle" not in source
+    assert "start_unix_server" not in combined
+    assert "create_unix_server" not in combined
+    assert "start_next_cycle" not in combined

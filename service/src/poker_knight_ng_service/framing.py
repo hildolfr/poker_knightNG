@@ -41,13 +41,13 @@ def serialize_response(*, status: int, body: bytes) -> bytes:
     return b"".join(chunk for chunk in chunks if chunk is not None)
 
 
-def admit_request(raw: bytes) -> AdmittedRequest:
-    """Parse one complete HTTP/1.1 request from already bounded bytes."""
+def _inspect_request_head(raw_head: bytes) -> int:
+    """Validate one bounded request head and return its declared body length."""
 
-    head, separator, raw_body = raw.partition(b"\r\n\r\n")
+    head, separator, trailing = raw_head.partition(b"\r\n\r\n")
     if len(head) + len(separator) > 8192:
         raise TransportFailure(431)
-    if not separator:
+    if not separator or trailing:
         raise TransportFailure(400)
     lines = head.split(b"\r\n")
     if len(lines) - 1 > 32:
@@ -90,22 +90,27 @@ def admit_request(raw: bytes) -> AdmittedRequest:
             for name, separator, value in fields
             if separator and name.lower() == b"content-length"
         )
-        if (
-            not raw_length.isdigit()
-            or len(raw_length) > 5
-            or (len(raw_length) > 1 and raw_length.startswith(b"0"))
+        if not raw_length.isdigit() or (
+            len(raw_length) > 1 and raw_length.startswith(b"0")
         ):
             raise TransportFailure(400)
+        if len(raw_length) > 5 or (
+            len(raw_length) == 5 and raw_length > b"16384"
+        ):
+            raise TransportFailure(413)
         declared_length = int(raw_length)
         if is_post and declared_length == 0:
             raise TransportFailure(400)
-        if declared_length > 16384:
-            raise TransportFailure(413)
 
-    if declared_length is None:
-        if raw_body:
-            raise TransportFailure(400)
-    elif len(raw_body) != declared_length:
+    return declared_length or 0
+
+
+def admit_request(raw: bytes) -> AdmittedRequest:
+    """Parse one complete HTTP/1.1 request from already bounded bytes."""
+
+    head, separator, raw_body = raw.partition(b"\r\n\r\n")
+    declared_length = _inspect_request_head(head + separator)
+    if len(raw_body) != declared_length:
         raise TransportFailure(400)
 
     try:

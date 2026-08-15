@@ -77,14 +77,15 @@ def test_aggregate_header_overflow_is_empty_431() -> None:
     assert caught.value.body == b""
 
 
-def test_declared_payload_overflow_is_empty_413() -> None:
+@pytest.mark.parametrize("raw_length", [b"16385", b"100000", b"9" * 1024])
+def test_declared_payload_overflow_is_empty_413(raw_length: bytes) -> None:
     from poker_knight_ng_service.framing import TransportFailure, admit_request
 
     raw = (
         b"POST /v1/solve HTTP/1.1\r\n"
         b"Host: local\r\n"
         b"Content-Type: application/json\r\n"
-        b"Content-Length: 16385\r\n"
+        b"Content-Length:" + raw_length + b"\r\n"
         b"\r\n"
     )
 
