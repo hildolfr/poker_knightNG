@@ -11,6 +11,7 @@ Current Phase 7B scope contains:
 - strict UTF-8 JSON decoding with duplicate-member, BOM, non-finite, root, and trailing-document enforcement;
 - semantic parsing through the frozen root `EquityRequest.parse()` contract;
 - the 1,000,000-trial service ceiling and explicit CPU/CUDA route/backend binding;
+- an atomic process-global one-solve lease with immediate zero-queue `RESOURCE_EXHAUSTED` rejection;
 - empty health and transport-failure envelopes;
 - canonical JSON solve envelopes with fixed cache, security, correlation, length, and close headers; and
 - exact request-ID generation with fail-closed emergency-ID signaling.
@@ -19,4 +20,4 @@ The service distribution owns `h11==0.16.0` through the exact selected wheel URL
 
 The root engine distribution and root lock remain unchanged. Service source directly imports only the frozen root contract model/problem modules and does not call CPU/CUDA executor APIs.
 
-No listener, socket activation, resource-admission token, engine invocation, disconnect lifecycle, structured logging, deployment, or automatic backend routing exists yet. Those remain later reviewed checkpoints under ADR 0005.
+No listener, socket activation, engine invocation, disconnect lifecycle, structured logging, deployment, or automatic backend routing exists yet. Those remain later reviewed checkpoints under ADR 0005.

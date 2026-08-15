@@ -57,7 +57,8 @@ def test_ci_verifies_frozen_service_environment_and_tests() -> None:
     assert 'uv pip check --python "$service_venv/bin/python"' in workflow
     assert (
         '"$service_venv/bin/python" -I -c "import '
-        'poker_knight_ng_service.adapter, poker_knight_ng_service.connection, '
+        'poker_knight_ng_service.adapter, poker_knight_ng_service.admission, '
+        'poker_knight_ng_service.connection, '
         'poker_knight_ng_service.framing, '
         'poker_knight_ng_service.responses, poker_knight_ng_service.routing"'
         in workflow
@@ -104,6 +105,12 @@ def test_phase7b_source_has_no_listener_or_engine_executor() -> None:
             "from poker_knight_ng.contract.models import EquityRequest",
             "from .framing import AdmittedRequest",
             "from .routing import Route, select_route",
+        ),
+        "admission.py": (
+            "from __future__ import annotations",
+            "from collections.abc import Callable",
+            "from threading import Lock",
+            "from poker_knight_ng.contract.errors import problem",
         ),
         "connection.py": (
             "from __future__ import annotations",
@@ -203,6 +210,7 @@ def test_phase7b_source_has_no_listener_or_engine_executor() -> None:
         ("object", "__getattribute__"),
         ("object", "__getattribute__"),
         ("object", "__getattribute__"),
+        ("object", "__new__"),
         ("super()", "__init__"),
         ("super()", "__init__"),
     ]
