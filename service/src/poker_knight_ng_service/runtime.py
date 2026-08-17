@@ -45,6 +45,9 @@ class ServiceRuntime:
         self._max_sessions = max_sessions
         self._graceful_drain_seconds = graceful_seconds
         self._active_sessions = 0
+        # Fixed-cardinality, RAM-only aggregate: no peer, request, path, or
+        # exception data is retained for diagnostics.
+        self._rejected_sessions = 0
         self._session_tasks: set[asyncio.Task[None]] = set()
         self._listener: L1Listener | None = None
         self._stopping = False
@@ -66,8 +69,10 @@ class ServiceRuntime:
 
     def _admit_session(self) -> bool:
         if self._stopping:
+            self._rejected_sessions += 1
             return False
         if self._active_sessions >= self._max_sessions:
+            self._rejected_sessions += 1
             return False
         self._active_sessions += 1
         return True
@@ -83,6 +88,24 @@ class ServiceRuntime:
     @property
     def max_sessions(self) -> int:
         return self._max_sessions
+
+    def diagnostics_snapshot(self) -> dict[str, int | str]:
+        """Return the fixed, in-process-only operator diagnostics snapshot.
+
+        This is deliberately not an HTTP route: socket filesystem permissions
+        remain the only service authorization boundary, and the frozen 204
+        ``/healthz`` response remains unchanged.  The snapshot has no
+        unbounded labels or request-derived values, so callers can export it
+        through a separately authorized local supervisor if one is approved.
+        """
+
+        return {
+            "schema_version": "poker-knight-ng-runtime-diagnostics-v1",
+            "readiness": "ready" if self._listener is not None and not self._stopping else "not-ready",
+            "active_sessions": self._active_sessions,
+            "max_sessions": self._max_sessions,
+            "rejected_sessions": self._rejected_sessions,
+        }
 
     async def serve(self, shutdown: asyncio.Event) -> None:
         """Serve until shutdown is requested."""

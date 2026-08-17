@@ -113,7 +113,7 @@ silently approximated through a v1 interface.
 | Release procedure | **Implemented** | `docs/release-process.md` freezes approval, history-preservation, privacy, publication, and rollback gates |
 | Automated release pipeline | **Implemented** | Manual tag/rerelease workflow produces deterministic candidate artifacts and checksums for `v<version>` pre-release tags; separate PyPI publication workflow verifies release-asset digests before trusted-index publish |
 | Network deployment | **Untouched** | No long-running API service has been built or deployed |
-| Production observability | **Untouched** | Network-service health, metrics, and operator alerts remain future work |
+| Production observability | **Implemented** | The existing private `/healthz` remains its frozen empty 204 liveness check. `ServiceRuntime.diagnostics_snapshot()` now supplies a fixed-schema, in-process-only readiness/admission snapshot (`readiness`, active/max/rejected sessions) for a separately authorized local supervisor; it has no HTTP diagnostics route, no request-derived values, no peer/path/exception data, and no alert/export transport. |
 | Security exposure review | **Not started** | Service threat modelling begins with Phase 7A |
 
 ## Legacy `TODO.md` reconciliation

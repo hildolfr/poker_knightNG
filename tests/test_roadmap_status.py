@@ -19,6 +19,16 @@ def test_roadmap_status_is_published_and_authority_scoped() -> None:
     assert "15e49a5e8d88bcca6395ec07c02aacf388996ac4" in text
 
 
+def test_roadmap_records_private_observability_boundary() -> None:
+    text = ROADMAP.read_text("utf-8")
+    row = next(line for line in text.splitlines() if line.startswith("| Production observability"))
+
+    assert "**Implemented**" in row
+    assert "in-process-only" in row
+    assert "no HTTP diagnostics route" in row
+    assert "no request-derived values" in row
+
+
 def test_roadmap_retains_every_explicitly_deferred_v1_surface() -> None:
     text = ROADMAP.read_text("utf-8").lower()
     required = (
