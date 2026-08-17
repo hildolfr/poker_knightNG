@@ -39,13 +39,13 @@ configured and recorded in the release evidence:
 3. Confirm the Actions token policy permits the explicitly requested
    `contents: write` permission for `release-prerelease.yml`; its final tag push
    and `gh release create` otherwise fail after all release gates have run.
-4. Protect manual prerelease dispatch itself. The current
-   `release-prerelease.yml` job does **not** bind to a protected GitHub
-   environment, so owner-review language in this document is not mechanically
-   enforced by that workflow. Before treating release automation as ready,
-   either bind that job to a separately protected release environment or provide
-   an independently enforced organization/repository control that limits who
-   can dispatch it, with evidence of the configuration.
+4. Protect manual prerelease dispatch with the repository `release` environment.
+   `release-prerelease.yml` is bound to that environment before any tag push or
+   GitHub release creation. Configure `release` with required owner reviewers
+   and deployment-branch restrictions that admit only `main`; verify the live
+   configuration and preserve that evidence before treating release automation
+   as ready. The repository file can request this protection but cannot prove
+   its GitHub-side reviewers or restrictions are configured.
 5. Exercise both manual workflows against a disposable prerelease only after the
    above controls are in place. Preserve the run URLs and verify that the PyPI
    job waited for environment approval before its OIDC exchange.
@@ -110,6 +110,14 @@ readiness. Before tagging:
 - run the complete public authority verifier set;
 - generate SHA-256 checksums for release assets; and
 - independently review the release notes and asset list.
+
+The private service distribution is **deployment-bundle only**: it must never be
+released or installed as a standalone wheel because its `Requires-Dist` pins the
+root `poker-knight-ng` engine package, which is not published to a package index.
+A service deployment bundle must contain the matching-version engine wheel and
+service wheel (plus the pinned `h11` wheel); CI installs that complete set and
+runs `pip check`. Service sdists exclude `tests/` and are inspected by the
+packaging regression test before release use.
 
 Tagging and creating a GitHub release each require explicit owner approval. A
 release must attach only newly built public artifacts and checksums from the

@@ -46,8 +46,10 @@ Listener work remains split into three separately reviewed checkpoints:
    non-cancellable solve remains after that deadline, wait without a deadline;
    forced solve termination is forbidden. This preserves ADR 0005 exactly.
 
-No deployment, socket activation, systemd unit, logging, metrics, automatic
-routing, TCP, TLS or Phase 7C behavior belongs to L1.
+No deployment, systemd unit, logging, metrics, automatic routing, TCP, TLS or
+Phase 7C behavior belongs to L1. **Socket activation is forbidden**: this
+runtime rejects inherited listeners, and only its own
+`construct_listener_with_callback` path may construct the production listener.
 
 ### 2. Opaque resolved service identity
 
