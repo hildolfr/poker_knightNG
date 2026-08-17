@@ -22,6 +22,40 @@ publication requires the gates below.
 - PyPI publication is a separate approval and credential boundary from GitHub
   promotion or a GitHub release.
 
+## 0. Hosted-automation prerequisites (must be verified live)
+
+The workflow files deliberately contain no long-lived package-index credential:
+`publish-pypi.yml` requests only an OIDC ID token and uses `uv publish --trusted-publishing`.
+That design is safe only after the following **out-of-repository** controls are
+configured and recorded in the release evidence:
+
+1. Create the repository `pypi` environment before any publication dispatch.
+   Require the designated owner reviewers and restrict its deployment branches
+   to the intended immutable release tags.
+2. Register PyPI trusted publishing for project `poker-knight-ng` to this exact
+   repository and the `publish-pypi.yml` workflow. Confirm the registration with
+   the project owner; no repository secret, `PYPI_TOKEN`, or fallback credential
+   may be added.
+3. Confirm the Actions token policy permits the explicitly requested
+   `contents: write` permission for `release-prerelease.yml`; its final tag push
+   and `gh release create` otherwise fail after all release gates have run.
+4. Protect manual prerelease dispatch itself. The current
+   `release-prerelease.yml` job does **not** bind to a protected GitHub
+   environment, so owner-review language in this document is not mechanically
+   enforced by that workflow. Before treating release automation as ready,
+   either bind that job to a separately protected release environment or provide
+   an independently enforced organization/repository control that limits who
+   can dispatch it, with evidence of the configuration.
+5. Exercise both manual workflows against a disposable prerelease only after the
+   above controls are in place. Preserve the run URLs and verify that the PyPI
+   job waited for environment approval before its OIDC exchange.
+
+A failed post-tag `gh release create` can leave an annotated remote tag without
+its GitHub release. The workflow intentionally refuses to reuse or move that
+name on rerun. Treat this as an incident: stop, preserve the tag and run logs,
+and obtain an owner-approved recovery plan rather than deleting or moving the
+tag.
+
 ## 1. Source-candidate gate
 
 Before proposing promotion:

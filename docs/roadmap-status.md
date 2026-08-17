@@ -53,7 +53,7 @@ current roadmap.
 | Phase 7C — automatic CUDA routing contract | **Active** | Approved [ADR 0008](adr/0008-automatic-cuda-routing.md): `/v1/solve` routes by request backend, with `/v1/solve-cuda` preserved explicit |
 | Phase 7D — automatic routing implementation | **Active** | Backend admission and execution honor `/v1/solve` backend-based CPU/CUDA selection in service package; tests + profile route contract updated |
 | Phase 7E — network/runtime qualification | **Complete** | Listener-free qualification added for auto-route execution and explicit route-mismatch handling; L2 session admission and L3 lifecycle drain are implemented with fixed 16-way bounded admission and graceful/indefinite shutdown semantics. |
-| Phase 7F — deployment | **Active** | Runtime entrypoint and deployment artifacts are introduced (`poker-knight-ng-service`, `service/deployment/systemd/*`), with socket activation now wired and production rollout/monitoring checklist remaining as next-stage checkpoints. |
+| Phase 7F — deployment | **Implemented** | A reviewed inactive deployment scaffold (`service/deployment/systemd/*`) preserves the canonical local socket and hardening profile, rejects manual activation, has no enablement target, and is validated in checkout by `service/deployment/validate-systemd.sh`. The activation/conformance, rollout, monitoring, and observability gates remain separate future checkpoints. |
 
 The binding SPEC currently has one unchecked combined item: a network service
 and automatic CUDA routing. Phase 7A–7F is the proposed gated decomposition of
@@ -111,10 +111,10 @@ silently approximated through a v1 interface.
 | Revival/release tag | **Untouched** | Only the preserved legacy tag exists |
 | Automated CPU CI | **Active** | Pinned read-only verification passed on the source candidate, final closeout, pull request, and promoted default branch; it covers full tests, authorities, package build, and isolated wheel smoke testing |
 | Release procedure | **Implemented** | `docs/release-process.md` freezes approval, history-preservation, privacy, publication, and rollback gates |
-| Automated release pipeline | **Implemented** | Manual tag/rerelease workflow produces deterministic candidate artifacts and checksums for `v<version>` pre-release tags; separate PyPI publication workflow verifies release-asset digests before trusted-index publish |
-| Network deployment | **Untouched** | No long-running API service has been built or deployed |
+| Automated release pipeline | **Implemented** | Workflow code is implemented: the manual prerelease flow builds deterministic candidate artifacts/checksums for `v<version>` tags, and the separate PyPI flow verifies release-asset digests before trusted-index publication. Hosted-automation prerequisites in `release-process.md` document required out-of-repository gates (`pypi` environment, trusted publisher, action permissions, and enforceable owner gate). |
+| Network deployment | **Implemented** | Inactive, non-enableable systemd scaffold plus isolated static validation and operator conformance checklist exist in `service/deployment/`; no service is deployed or authorized for activation. |
 | Production observability | **Implemented** | The existing private `/healthz` remains its frozen empty 204 liveness check. `ServiceRuntime.diagnostics_snapshot()` now supplies a fixed-schema, in-process-only readiness/admission snapshot (`readiness`, active/max/rejected sessions) for a separately authorized local supervisor; it has no HTTP diagnostics route, no request-derived values, no peer/path/exception data, and no alert/export transport. |
-| Security exposure review | **Not started** | Service threat modelling begins with Phase 7A |
+| Security exposure review | **Implemented** | Deployment scaffold and listener/runtime exposure assertions are in-tree: systemd hardening checks, socket inheritance constraints, and fixed local diagnostics are covered by `service/tests/test_deployment_exposure.py` and contract-backed runtime tests; hostile-manual activation surfaces are rejected while public route exposure remains out-of-scope by design. |
 
 ## Legacy `TODO.md` reconciliation
 

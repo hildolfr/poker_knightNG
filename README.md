@@ -83,6 +83,15 @@ uv run python tools/verify_cuda_release_qualification.py
 uv run python tools/verify_cuda_statistical_release_qualification.py
 ```
 
+Before declaring the published roadmap ready for merge, run the local,
+network-free completion gate. It checks the roadmap and service contracts, CI
+and release-documentation readiness, plus the checked-in deployment artifacts;
+it does not start or deploy the service:
+
+```sh
+python tools/verify_roadmap_completion.py
+```
+
 The exhaustive seven-card release qualification remains deliberately opt-in:
 
 ```sh

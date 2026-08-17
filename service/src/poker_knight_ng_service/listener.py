@@ -35,7 +35,7 @@ def _inherited_listener_fd() -> int | None:
         count = int(os.environ.get("LISTEN_FDS", "0"))
     except ValueError:
         return None
-    if count <= 0:
+    if count != 1:
         return None
     return 3
 

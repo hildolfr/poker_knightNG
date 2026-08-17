@@ -572,6 +572,16 @@ def test_inherited_listener_fd_ignores_bad_pid(monkeypatch) -> None:
     assert listener._inherited_listener_fd() is None
 
 
+@pytest.mark.parametrize("count", ("0", "2", "not-a-count"))
+def test_inherited_listener_fd_requires_exactly_one_socket(monkeypatch, count: str) -> None:
+    from poker_knight_ng_service import listener
+
+    monkeypatch.setenv("LISTEN_PID", str(os.getpid()))
+    monkeypatch.setenv("LISTEN_FDS", count)
+
+    assert listener._inherited_listener_fd() is None
+
+
 def test_cleanup_mixed_failures_prefers_base_exception_over_ordinary(monkeypatch) -> None:
     from poker_knight_ng_service import listener
 

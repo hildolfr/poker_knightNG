@@ -1,7 +1,8 @@
 [Unit]
-Description=Poker Knight NG bounded network service
+Description=Poker Knight NG bounded local service (deployment scaffold; inactive pending conformance)
 After=network-online.target
 Wants=network-online.target
+RefuseManualStart=yes
 
 [Service]
 Type=simple
@@ -9,7 +10,6 @@ User=poker-knight-ng
 Group=poker-knight-ng
 RuntimeDirectory=poker-knight-ng
 RuntimeDirectoryMode=0750
-Sockets=poker-knight-ng.socket
 WorkingDirectory=/opt/poker-knight-ng
 ExecStart=/usr/bin/env poker-knight-ng-service
 Restart=always
@@ -27,6 +27,3 @@ LockPersonality=yes
 RestrictRealtime=yes
 SystemCallArchitectures=native
 SystemCallFilter=@system-service
-
-[Install]
-WantedBy=multi-user.target
