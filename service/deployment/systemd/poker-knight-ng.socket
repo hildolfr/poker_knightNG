@@ -1,5 +1,5 @@
 [Unit]
-Description=Poker Knight NG socket for local service activation (disabled until ADR 0005 runtime conformance passes)
+Description=Poker Knight NG socket for local service activation
 PartOf=poker-knight-ng.service
 
 [Socket]

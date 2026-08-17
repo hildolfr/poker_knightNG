@@ -9,6 +9,7 @@ User=poker-knight-ng
 Group=poker-knight-ng
 RuntimeDirectory=poker-knight-ng
 RuntimeDirectoryMode=0750
+Sockets=poker-knight-ng.socket
 WorkingDirectory=/opt/poker-knight-ng
 ExecStart=/usr/bin/env poker-knight-ng-service --max-sessions 16 --graceful-drain-seconds 5
 Restart=always

@@ -554,6 +554,24 @@ def test_cleanup_base_exception_from_close_fd_propagates_and_runs_all_fds(monkey
     assert fake.closed_fds == [fake.lock_fd, fake.parent_fd]
 
 
+def test_inherited_listener_fd_respects_matching_pid_and_fds(monkeypatch) -> None:
+    from poker_knight_ng_service import listener
+
+    monkeypatch.setenv("LISTEN_PID", str(os.getpid()))
+    monkeypatch.setenv("LISTEN_FDS", "1")
+
+    assert listener._inherited_listener_fd() == 3
+
+
+def test_inherited_listener_fd_ignores_bad_pid(monkeypatch) -> None:
+    from poker_knight_ng_service import listener
+
+    monkeypatch.setenv("LISTEN_PID", "999999")
+    monkeypatch.setenv("LISTEN_FDS", "1")
+
+    assert listener._inherited_listener_fd() is None
+
+
 def test_cleanup_mixed_failures_prefers_base_exception_over_ordinary(monkeypatch) -> None:
     from poker_knight_ng_service import listener
 

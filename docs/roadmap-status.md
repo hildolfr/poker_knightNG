@@ -53,7 +53,7 @@ current roadmap.
 | Phase 7C — automatic CUDA routing contract | **Active** | Approved [ADR 0008](adr/0008-automatic-cuda-routing.md): `/v1/solve` routes by request backend, with `/v1/solve-cuda` preserved explicit |
 | Phase 7D — automatic routing implementation | **Active** | Backend admission and execution honor `/v1/solve` backend-based CPU/CUDA selection in service package; tests + profile route contract updated |
 | Phase 7E — network/runtime qualification | **Active** | Listener-free qualification added for auto-route execution, explicit route mismatch handling, and listener cleanup BaseException paths; full load, shutdown/cancel, and deployment behavior remain for L2/L3 |
-| Phase 7F — deployment | **Active** | Runtime entrypoint and deployment artifacts are introduced (`poker-knight-ng-service`, `service/deployment/systemd/*`), while production rollout, monitoring, and socket activation remain future checkpoints. |
+| Phase 7F — deployment | **Active** | Runtime entrypoint and deployment artifacts are introduced (`poker-knight-ng-service`, `service/deployment/systemd/*`), with socket activation now wired and production rollout/monitoring checklist remaining as next-stage checkpoints. |
 
 The binding SPEC currently has one unchecked combined item: a network service
 and automatic CUDA routing. Phase 7A–7F is the proposed gated decomposition of

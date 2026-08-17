@@ -22,6 +22,24 @@ _SOCKET_MODE = 0o660
 _PROBE_TIMEOUT_SECONDS = 0.250
 
 
+def _inherited_listener_fd() -> int | None:
+    pid = os.environ.get("LISTEN_PID")
+    if not pid:
+        return None
+    try:
+        if int(pid) != os.getpid():
+            return None
+    except ValueError:
+        return None
+    try:
+        count = int(os.environ.get("LISTEN_FDS", "0"))
+    except ValueError:
+        return None
+    if count <= 0:
+        return None
+    return 3
+
+
 class ListenerConstructionError(RuntimeError):
     """The canonical listener could not be constructed safely."""
 
@@ -69,6 +87,13 @@ class _L1Syscalls(Protocol):
     def unlink_target(self, name: str, dir_fd: int) -> None: ...
 
     async def start_server(self, callback, path: str, start_serving: bool) -> _Server: ...
+
+    async def start_server_from_socket(
+        self,
+        callback,
+        socket: socket.socket,
+        start_serving: bool,
+    ) -> _Server: ...
 
     def chmod_target(self, name: str, mode: int, dir_fd: int) -> None: ...
 
@@ -121,6 +146,18 @@ class _RealSyscalls:
         return await asyncio.start_unix_server(
             callback,
             path=path,
+            start_serving=start_serving,
+        )
+
+    async def start_server_from_socket(
+        self,
+        callback,
+        socket: socket.socket,
+        start_serving: bool,
+    ) -> _Server:
+        return await asyncio.start_unix_server(
+            callback,
+            sock=socket,
             start_serving=start_serving,
         )
 
@@ -252,6 +289,7 @@ class L1Listener:
         "_lock_fd",
         "_created",
         "_closed",
+        "_cleanup_socket",
     )
 
     def __init__(
@@ -261,6 +299,7 @@ class L1Listener:
         parent_fd: int,
         lock_fd: int,
         created: _Snapshot,
+        cleanup_socket: bool = True,
     ) -> None:
         self._server = server
         self._syscalls = syscalls
@@ -268,6 +307,7 @@ class L1Listener:
         self._lock_fd = lock_fd
         self._created = created
         self._closed = False
+        self._cleanup_socket = cleanup_socket
 
     async def close(self) -> None:
         """Close serving, safely remove the owned socket, then release the lease."""
@@ -277,14 +317,15 @@ class L1Listener:
         self._closed = True
         failures: list[BaseException] = []
         await _close_server(self._server, failures)
-        try:
-            await _cleanup_target(
-                self._syscalls,
-                self._parent_fd,
-                self._created,
-            )
-        except BaseException as failure:
-            failures.append(failure)
+        if self._cleanup_socket:
+            try:
+                await _cleanup_target(
+                    self._syscalls,
+                    self._parent_fd,
+                    self._created,
+                )
+            except BaseException as failure:
+                failures.append(failure)
         _close_fd(self._syscalls, self._lock_fd, failures)
         _close_fd(self._syscalls, self._parent_fd, failures)
         _report_cleanup_failures(failures)
@@ -340,6 +381,45 @@ async def _construct_l1_listener(
         syscalls.flock(lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
 
         existing = syscalls.inspect_target(_SOCKET_BASENAME, parent_fd)
+        inherited = _inherited_listener_fd()
+        if inherited is not None:
+            syscalls.boundary("systemd-inherited-listener")
+            inherited_socket = socket.socket(fileno=inherited)
+            try:
+                _require(
+                    inherited_socket.getsockname() == _SOCKET_PATH,
+                    "inherited listener path mismatch",
+                )
+                created_snapshot = _Snapshot.from_stat(os.fstat(inherited))
+                _require(
+                    existing is None
+                    or (
+                        _same_object(existing, created_snapshot)
+                        and stat.S_ISSOCK(created_snapshot.mode)
+                    ),
+                    "inherited socket target changed",
+                )
+                server = await syscalls.start_server_from_socket(
+                    callback,
+                    inherited_socket,
+                    False,
+                )
+                current = syscalls.inspect_target(_SOCKET_BASENAME, parent_fd)
+                _require_same_socket(current, created_snapshot, uid, gid, exact_mode=_SOCKET_MODE)
+                syscalls.boundary("systemd-inherited-start-serving")
+                await server.start_serving()
+                return L1Listener(
+                    server,
+                    syscalls,
+                    parent_fd,
+                    lock_fd,
+                    created_snapshot,
+                    False,
+                )
+            except BaseException:
+                inherited_socket.close()
+                raise
+
         if existing is not None:
             _require(
                 _is_exact(existing, stat.S_ISSOCK, uid, gid, _SOCKET_MODE),

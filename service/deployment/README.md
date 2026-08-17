@@ -5,11 +5,14 @@ This directory contains rollout assets for Phase 7F delivery work.
 ## What is included
 
 - `systemd/poker-knight-ng.service` — direct runtime unit for `poker-knight-ng-service`.
-- `systemd/poker-knight-ng.socket` — socket-activation unit stub for later hardening.
+- `systemd/poker-knight-ng.socket` — socket-activation companion for on-demand startup.
 
 ## Runtime unit behavior (current)
 
-The provided systemd unit starts the service directly via
+The provided systemd unit starts the service directly and is wired to the socket
+unit as a socket-activated on-demand service. In either launch mode, runtime
+starts with:
+
 `poker-knight-ng-service --max-sessions 16 --graceful-drain-seconds 5`.
 This is compatible with the current bounded listener contract and enforces:
 
@@ -17,10 +20,11 @@ This is compatible with the current bounded listener contract and enforces:
 - restart policy for transient failures
 - a non-privileged runtime profile boundary
 
-## Current roadmap constraints
+## Current roadmap state
 
-Socket activation remains implemented as a **disabled roadmap artifact** until
-runtime conformance for shutdown/admission boundaries completes under ADR 0005.
+Socket activation is active and bound to `poker-knight-ng.socket`, but the full
+production hardening checklist in the roadmap remains the next checkpoint
+before PyPI publication and automation layers.
 
 ## Local install sketch
 
@@ -29,13 +33,12 @@ From the repository root:
 ```bash
 mkdir -p /opt/poker-knight-ng
 cp service/deployment/systemd/poker-knight-ng.service /etc/systemd/system/
-# optional for later: cp service/deployment/systemd/poker-knight-ng.socket ...
+cp service/deployment/systemd/poker-knight-ng.socket /etc/systemd/system/
 systemctl daemon-reload
-systemctl enable --now poker-knight-ng.service
+systemctl enable --now poker-knight-ng.socket
+systemctl start poker-knight-ng.service
 ```
 
 ## Tag/release artifact notes
 
 Use the project Git workflow tags and release process for immutable artifacts.
-Roadmap-phase 7F tracks this as the next checkpoint before PyPI publication
-and full runtime activation policy are implemented.
