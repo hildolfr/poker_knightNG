@@ -173,6 +173,13 @@ def test_phase7b_source_has_exact_engine_authority_and_no_listener() -> None:
             "from dataclasses import dataclass",
             "import h11",
         ),
+        "__main__.py": (
+            "from __future__ import annotations",
+            "import argparse",
+            "import asyncio",
+            "import signal",
+            "from .runtime import ServiceRuntime, add_runtime_arguments",
+        ),
         "listener.py": (
             "from __future__ import annotations",
             "import asyncio",
@@ -182,8 +189,18 @@ def test_phase7b_source_has_exact_engine_authority_and_no_listener() -> None:
             "import socket",
             "import stat",
             "from dataclasses import dataclass",
-            "from typing import Protocol",
+            "from typing import Callable, Protocol",
             "from .identity import ResolvedServiceIdentity, _identity_values",
+        ),
+        "runtime.py": (
+            "from __future__ import annotations",
+            "import argparse",
+            "import asyncio",
+            "from collections.abc import Callable",
+            "from .identity import resolve_production_identity",
+            "from .listener import L1Listener, construct_listener_with_callback",
+            "from .session import handle_one_session",
+            "from .stream_adapter import AsyncPeer",
         ),
         "responses.py": (
             "from __future__ import annotations",

@@ -28,3 +28,6 @@ where = ["src"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+
+[project.scripts]
+poker-knight-ng-service = "poker_knight_ng_service.__main__:main"

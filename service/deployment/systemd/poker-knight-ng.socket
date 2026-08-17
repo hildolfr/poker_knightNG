@@ -1,0 +1,12 @@
+[Unit]
+Description=Poker Knight NG socket for local service activation (disabled until ADR 0005 runtime conformance passes)
+PartOf=poker-knight-ng.service
+
+[Socket]
+ListenStream=/run/poker-knight-ng/service.sock
+SocketMode=0660
+DirectoryMode=0750
+Service=poker-knight-ng.service
+
+[Install]
+WantedBy=sockets.target

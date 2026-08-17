@@ -27,4 +27,4 @@ The service distribution owns `h11==0.16.0` through the exact selected wheel URL
 
 The root engine distribution metadata and root lock remain unchanged. Public root import is engine-construction inert; the service's single reviewed execution module selects only `CPUReferenceEngine` or `CUDAEngine` after admission.
 
-Listener construction, stream adapter, socket ownership, and lifecycle cleanup are implemented in Phase 7B-L1; socket activation packaging, deployment wiring, structured logging, and automatic backend routing remain. The execution boundary still adds no service execution timeout and never cancels admitted engine work; those are later checkpoints under ADR 0005.
+Listener construction, stream adapter, socket ownership, and lifecycle cleanup are implemented in Phase 7B-L1; socket activation packaging, deployment wiring, structured logging, and runtime process entrypoint scaffolding are now in Phase 7F. The execution boundary still adds no service execution timeout and never cancels admitted engine work; those are later checkpoints under ADR 0005.

@@ -8,7 +8,7 @@ import os
 import socket
 import stat
 from dataclasses import dataclass
-from typing import Protocol
+from typing import Callable, Protocol
 
 from .identity import ResolvedServiceIdentity, _identity_values
 
@@ -313,6 +313,7 @@ async def _cleanup_failed_construction(
 async def _construct_l1_listener(
     identity: ResolvedServiceIdentity,
     syscalls: _L1Syscalls,
+    callback: Callable[[asyncio.StreamReader, asyncio.StreamWriter], object] = _close_accepted,
 ) -> L1Listener:
     uid, gid = _identity_values(identity)
     parent_fd: int | None = None
@@ -357,7 +358,7 @@ async def _construct_l1_listener(
             _require_same_socket(current, existing, uid, gid, exact_mode=_SOCKET_MODE)
             syscalls.unlink_target(_SOCKET_BASENAME, parent_fd)
 
-        server = await syscalls.start_server(_close_accepted, _SOCKET_PATH, False)
+        server = await syscalls.start_server(callback, _SOCKET_PATH, False)
         created = syscalls.inspect_target(_SOCKET_BASENAME, parent_fd)
         _require(
             created is not None
@@ -406,3 +407,12 @@ async def construct_l1_listener(identity: ResolvedServiceIdentity) -> L1Listener
     """Construct the one canonical production listener with no injectable path."""
 
     return await _construct_l1_listener(identity, _RealSyscalls())
+
+
+async def construct_listener_with_callback(
+    identity: ResolvedServiceIdentity,
+    callback: Callable[[asyncio.StreamReader, asyncio.StreamWriter], object],
+) -> L1Listener:
+    """Construct the canonical listener with an explicit accept callback."""
+
+    return await _construct_l1_listener(identity, _RealSyscalls(), callback)

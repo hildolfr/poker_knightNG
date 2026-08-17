@@ -1,0 +1,31 @@
+[Unit]
+Description=Poker Knight NG bounded network service
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=poker-knight-ng
+Group=poker-knight-ng
+RuntimeDirectory=poker-knight-ng
+RuntimeDirectoryMode=0750
+WorkingDirectory=/opt/poker-knight-ng
+ExecStart=/usr/bin/env poker-knight-ng-service --max-sessions 16 --graceful-drain-seconds 5
+Restart=always
+RestartSec=1s
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictAddressFamilies=AF_UNIX
+LockPersonality=yes
+RestrictRealtime=yes
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+
+[Install]
+WantedBy=multi-user.target
