@@ -62,7 +62,10 @@ def test_ci_verifies_frozen_service_environment_and_tests() -> None:
         'poker_knight_ng_service.connection, '
         'poker_knight_ng_service.execution, '
         'poker_knight_ng_service.framing, '
+        'poker_knight_ng_service.identity, '
+        'poker_knight_ng_service.listener, '
         'poker_knight_ng_service.responses, poker_knight_ng_service.routing, '
+        'poker_knight_ng_service.stream_adapter, '
         'poker_knight_ng_service.session"'
         in workflow
     )
@@ -112,7 +115,7 @@ def test_packaging_adr_and_roadmap_preserve_no_listener_boundary() -> None:
     assert "zero-queue" in phase7b
     assert "engine-execution checkpoint" in phase7b
     assert "engine-construction-inert" in phase7b
-    assert "no listener" in phase7b.lower()
+    assert "listener" in phase7b.lower()
 
 
 def test_phase7b_source_has_exact_engine_authority_and_no_listener() -> None:
@@ -159,10 +162,28 @@ def test_phase7b_source_has_exact_engine_authority_and_no_listener() -> None:
             "from .admission import SolveLease, admit_solve",
             "from .routing import Route",
         ),
+        "identity.py": (
+            "from __future__ import annotations",
+            "from grp import getgrnam as _getgrnam",
+            "from pwd import getpwnam as _getpwnam",
+            "from weakref import WeakKeyDictionary",
+        ),
         "framing.py": (
             "from __future__ import annotations",
             "from dataclasses import dataclass",
             "import h11",
+        ),
+        "listener.py": (
+            "from __future__ import annotations",
+            "import asyncio",
+            "import errno",
+            "import fcntl",
+            "import os",
+            "import socket",
+            "import stat",
+            "from dataclasses import dataclass",
+            "from typing import Protocol",
+            "from .identity import ResolvedServiceIdentity, _identity_values",
         ),
         "responses.py": (
             "from __future__ import annotations",
@@ -192,6 +213,11 @@ def test_phase7b_source_has_exact_engine_authority_and_no_listener() -> None:
             "from .responses import EMERGENCY_REQUEST_ID, RequestIdGenerationFailure, generate_request_id, serialize_health_response, serialize_json_response, serialize_transport_failure",
             "from .routing import Route, select_route",
         ),
+        "stream_adapter.py": (
+            "from __future__ import annotations",
+            "import asyncio",
+            "import errno",
+        ),
     }
     observed_imports: dict[str, tuple[str, ...]] = {}
     forbidden_calls: list[str] = []
@@ -201,7 +227,6 @@ def test_phase7b_source_has_exact_engine_authority_and_no_listener() -> None:
     forbidden_name_calls = {
         "__import__",
         "compile",
-        "create_unix_server",
         "delattr",
         "eval",
         "exec",
@@ -212,20 +237,17 @@ def test_phase7b_source_has_exact_engine_authority_and_no_listener() -> None:
         "solve",
         "solve_cuda",
         "start_next_cycle",
-        "start_unix_server",
         "vars",
     }
     forbidden_attribute_calls = {
         "call_soon_threadsafe",
         "create_task",
-        "create_unix_server",
         "getattr",
         "import_module",
         "run_in_executor",
         "shield",
         "solve_cuda",
         "start_next_cycle",
-        "start_unix_server",
         "to_thread",
     }
     for path in sorted((SERVICE / "src/poker_knight_ng_service").glob("*.py")):
@@ -319,5 +341,7 @@ def test_phase7b_source_has_exact_engine_authority_and_no_listener() -> None:
         ("object", "__getattribute__"),
         ("object", "__getattribute__"),
         ("super()", "__init__"),
+        ("object", "__new__"),
+        ("type(cleanup_failure)", "__name__"),
         ("super()", "__init__"),
     ]

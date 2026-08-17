@@ -189,8 +189,8 @@ def test_adr_freezes_security_and_deferred_implementation_boundary() -> None:
 def test_spec_and_roadmap_do_not_claim_an_implemented_listener() -> None:
     spec = SPEC.read_text("utf-8")
     roadmap = ROADMAP.read_text("utf-8")
-    assert "A network service and automatic CUDA routing remain unimplemented" in spec
-    assert "No service listener is implemented or deployed" in roadmap
+    assert "automatic CUDA routing" in spec and "future" in spec
+    assert "L1 secure listener construction/adapters are implemented" in roadmap
     assert "ADR 0005" in roadmap
     phase7a = next(line for line in roadmap.splitlines() if line.startswith("| Phase 7A"))
     phase7b = next(line for line in roadmap.splitlines() if line.startswith("| Phase 7B"))
@@ -200,5 +200,5 @@ def test_spec_and_roadmap_do_not_claim_an_implemented_listener() -> None:
     assert "https://github.com/hildolfr/poker_knightNG/actions/runs/31862456329" in phase7a
     assert "ADR 0005" in phase7a
     assert "**Active**" in phase7b
-    assert "no listener" in phase7b.lower()
+    assert "listener" in phase7b.lower()
     assert "**Not started**" in phase7c
