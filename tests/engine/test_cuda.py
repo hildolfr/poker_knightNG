@@ -53,6 +53,31 @@ def test_cuda_engine_maps_typed_runtime_errors():
             CUDAEngine(runtime=Runtime(error=exc), clock_ns=iter((1, 2)).__next__).solve(request())
 
 
+def test_cuda_engine_maps_reimported_runtime_error_to_stable_public_code():
+    """A runtime module replaced via sys.modules pop+reimport must still map.
+
+    The engine captures exception classes at import time; an embedder or test
+    that pops ``_cuda_runtime`` from ``sys.modules`` and re-imports it creates
+    replacement classes.  The engine must resolve the current module's classes
+    too, so a fresh post-reimport exception still maps to BACKEND_UNAVAILABLE.
+    """
+    import sys
+
+    import poker_knight_ng._cuda_runtime as runtime_module
+    stale_backend = runtime_module.CudaBackendUnavailable("before reimport")
+    sys.modules.pop("poker_knight_ng._cuda_runtime", None)
+    try:
+        importlib.import_module("poker_knight_ng._cuda_runtime")
+        engine_module = importlib.import_module("poker_knight_ng.engine.cuda")
+        with pytest.raises(ContractProblem, match="BACKEND_UNAVAILABLE"):
+            engine_module.CUDAEngine(runtime=Runtime(error=stale_backend), clock_ns=iter((1, 2)).__next__).solve(request())
+        fresh_backend = sys.modules["poker_knight_ng._cuda_runtime"].CudaBackendUnavailable("after reimport")
+        with pytest.raises(ContractProblem, match="BACKEND_UNAVAILABLE"):
+            engine_module.CUDAEngine(runtime=Runtime(error=fresh_backend), clock_ns=iter((1, 2)).__next__).solve(request())
+    finally:
+        sys.modules["poker_knight_ng._cuda_runtime"] = runtime_module
+
+
 def test_cuda_engine_maps_pre_reload_runtime_error_to_stable_public_code():
     runtime_module = importlib.import_module("poker_knight_ng._cuda_runtime")
     engine_module = importlib.reload(importlib.import_module("poker_knight_ng.engine.cuda"))

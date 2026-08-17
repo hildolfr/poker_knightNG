@@ -21,6 +21,31 @@ def _clock(value: object) -> int:
     return value
 
 
+_FAILURE_CODE_BY_NAME = {
+    "CudaBackendUnavailable": "BACKEND_UNAVAILABLE",
+    "CudaResourceExhausted": "RESOURCE_EXHAUSTED",
+    "CudaRngExhausted": "RNG_REJECTION_EXHAUSTED",
+}
+
+
+def _runtime_failure_code(exc: BaseException) -> str | None:
+    """Map a runtime exception to its public contract code.
+
+    Same-generation instances match by isinstance; exceptions whose class was
+    replaced by an importlib.reload or a sys.modules pop+reimport match by
+    class name, guarded by the owning module so a foreign exception that
+    merely shares a name is never misclassified.
+    """
+    if isinstance(exc, (CudaBackendUnavailable, CudaResourceExhausted, CudaRngExhausted)):
+        return _FAILURE_CODE_BY_NAME[type(exc).__name__]
+    if type(exc).__module__ == "poker_knight_ng._cuda_runtime":
+        names = {cls.__name__ for cls in type(exc).__mro__}
+        for name in names:
+            if name in _FAILURE_CODE_BY_NAME:
+                return _FAILURE_CODE_BY_NAME[name]
+    return None
+
+
 class CUDAEngine:
     """Run only explicit ``backend='cuda'`` requests against a qualified runtime."""
     def __init__(self, *, runtime: Any = None, clock_ns: Callable[[], object] = monotonic_ns) -> None:
@@ -62,13 +87,7 @@ class CUDAEngine:
                 raise ValueError("invalid clock")
             return to_equity_result(aggregate, request, end - start, provenance=provenance)
         except Exception as exc:
-            # Keep these imported exception classes stable for this engine module's
-            # lifetime so a runtime retained across importlib.reload still maps to
-            # its public contract error rather than INTERNAL_ERROR.
-            if isinstance(exc, CudaBackendUnavailable):
-                raise problem("BACKEND_UNAVAILABLE") from exc
-            if isinstance(exc, CudaResourceExhausted):
-                raise problem("RESOURCE_EXHAUSTED") from exc
-            if isinstance(exc, CudaRngExhausted):
-                raise problem("RNG_REJECTION_EXHAUSTED") from exc
+            code = _runtime_failure_code(exc)
+            if code is not None:
+                raise problem(code) from exc
             raise problem("INTERNAL_ERROR") from exc
