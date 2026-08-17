@@ -2,7 +2,12 @@
 from time import monotonic_ns
 from typing import Any, Callable
 
-from .. import _cuda_runtime
+from .._cuda_runtime import (
+    CupyDeterministicRuntime,
+    CudaBackendUnavailable,
+    CudaResourceExhausted,
+    CudaRngExhausted,
+)
 from ..contract import EquityRequest, EquityResult, canonical_case_hash
 from ..contract.canonical import card_id
 from ..contract.errors import ContractProblem, problem
@@ -20,7 +25,7 @@ class CUDAEngine:
     """Run only explicit ``backend='cuda'`` requests against a qualified runtime."""
     def __init__(self, *, runtime: Any = None, clock_ns: Callable[[], object] = monotonic_ns) -> None:
         if runtime is None:
-            runtime = _cuda_runtime.CupyDeterministicRuntime()
+            runtime = CupyDeterministicRuntime()
         if not callable(clock_ns):
             raise TypeError("clock_ns must be callable")
         self._runtime, self._clock_ns = runtime, clock_ns
@@ -57,14 +62,13 @@ class CUDAEngine:
                 raise ValueError("invalid clock")
             return to_equity_result(aggregate, request, end - start, provenance=provenance)
         except Exception as exc:
-            # Resolve the module at the boundary: test/process module reloads
-            # must not turn a typed runtime failure into an internal adapter one.
-            import importlib
-            runtime_module = importlib.import_module("poker_knight_ng._cuda_runtime")
-            if isinstance(exc, runtime_module.CudaBackendUnavailable):
+            # Keep these imported exception classes stable for this engine module's
+            # lifetime so a runtime retained across importlib.reload still maps to
+            # its public contract error rather than INTERNAL_ERROR.
+            if isinstance(exc, CudaBackendUnavailable):
                 raise problem("BACKEND_UNAVAILABLE") from exc
-            if isinstance(exc, runtime_module.CudaResourceExhausted):
+            if isinstance(exc, CudaResourceExhausted):
                 raise problem("RESOURCE_EXHAUSTED") from exc
-            if isinstance(exc, runtime_module.CudaRngExhausted):
+            if isinstance(exc, CudaRngExhausted):
                 raise problem("RNG_REJECTION_EXHAUSTED") from exc
             raise problem("INTERNAL_ERROR") from exc
