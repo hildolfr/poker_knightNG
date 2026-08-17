@@ -1,4 +1,5 @@
 import json
+import os
 from pathlib import Path
 import subprocess
 import sys
@@ -84,7 +85,12 @@ def test_root_exports_exact_phase6_surface_and_remains_cupy_inert(tmp_path):
         "assert 'cupy' not in sys.modules; "
         "assert all(hasattr(p, n) for n in p.__all__)"
     )
-    environment = {"PYTHONPATH": str(tmp_path)}
+    environment = os.environ.copy()
+    package_path = str(ROOT / "src")
+    inherited_path = environment.get("PYTHONPATH", "")
+    environment["PYTHONPATH"] = os.pathsep.join(
+        part for part in (str(tmp_path), package_path, inherited_path) if part
+    )
     completed = subprocess.run(
         [sys.executable, "-c", code],
         check=False,

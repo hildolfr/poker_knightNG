@@ -3,7 +3,6 @@ import os
 from pathlib import Path
 import signal
 import sys
-import time
 
 import pytest
 
@@ -44,7 +43,7 @@ def test_bounded_runner_kills_group_on_output_overflow_and_timeout(tmp_path):
             timeout_seconds=2,
             output_limit=128,
         )
-    started = time.monotonic()
+    terminated = []
     with pytest.raises(tool.BenchmarkError, match="PROCESS_TIMEOUT"):
         tool.run_bounded(
             [sys.executable, "-c", "import time;time.sleep(60)"],
@@ -52,8 +51,10 @@ def test_bounded_runner_kills_group_on_output_overflow_and_timeout(tmp_path):
             env={},
             timeout_seconds=0.1,
             output_limit=128,
+            before_group_kill=lambda pid: terminated.append(pid),
         )
-    assert time.monotonic() - started < 2
+    assert len(terminated) == 1
+    assert type(terminated[0]) is int and terminated[0] > 0
 
 
 def test_bounded_runner_rejects_pipe_inheriting_descendant(tmp_path):
@@ -64,6 +65,12 @@ def test_bounded_runner_rejects_pipe_inheriting_descendant(tmp_path):
         "child=subprocess.Popen([sys.executable,'-c','import time;time.sleep(60)']);"
         "pathlib.Path(sys.argv[1]).write_text(str(child.pid))"
     )
+    terminated = []
+
+    def observe_group_kill(group_id):
+        descendant = int(pid_file.read_text(encoding="ascii"))
+        terminated.append((group_id, os.getpgid(descendant)))
+
     with pytest.raises(tool.BenchmarkError, match="PROCESS_PIPE"):
         tool.run_bounded(
             [sys.executable, "-c", script, str(pid_file)],
@@ -71,16 +78,10 @@ def test_bounded_runner_rejects_pipe_inheriting_descendant(tmp_path):
             env={},
             timeout_seconds=2,
             output_limit=1024,
+            before_group_kill=observe_group_kill,
         )
-    descendant = int(pid_file.read_text(encoding="ascii"))
-    for _ in range(100):
-        try:
-            os.kill(descendant, 0)
-        except ProcessLookupError:
-            break
-        time.sleep(0.01)
-    else:
-        pytest.fail("pipe-inheriting descendant survived process-group cleanup")
+    assert len(terminated) == 1
+    assert terminated[0][0] == terminated[0][1]
 
 
 def test_post_popen_setup_interrupt_propagates_after_group_cleanup(tmp_path, monkeypatch):

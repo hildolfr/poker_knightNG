@@ -7,12 +7,27 @@ ROOT = Path(__file__).parents[1]
 ROADMAP = ROOT / "docs" / "roadmap-status.md"
 
 
+def _status_rows(text: str) -> dict[str, str]:
+    header = "| Phase / checkpoint | Status | Delivered or remaining |"
+    start = text.splitlines().index(header) + 2
+    rows = {}
+    for line in text.splitlines()[start:]:
+        if not line.startswith("|"):
+            break
+        item, status, _detail = (cell.strip() for cell in line.strip("|").split("|", 2))
+        rows[item] = status
+    return rows
+
+
 def test_roadmap_status_is_published_and_authority_scoped() -> None:
     text = ROADMAP.read_text("utf-8")
 
     assert "validation/holdem/v1/SPEC.md" in text
     assert "TODO.md" in text and "non-authoritative" in text
-    assert "Phase 7A" in text and "Not started" in text
+    rows = _status_rows(text)
+    assert rows["Phase 7A — network service contract"] == "**Complete**"
+    assert rows["Phase 7B — bounded network service"] == "**Active**"
+    assert rows["Phase 7F — deployment"] == "**Implemented**"
     assert "network service" in text
     assert "automatic CUDA routing" in text
     assert "`main`" in text

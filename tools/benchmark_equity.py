@@ -626,6 +626,7 @@ def run_bounded(
     env: dict[str, str],
     timeout_seconds: float,
     output_limit: int,
+    before_group_kill: Any = None,
 ) -> subprocess.CompletedProcess[bytes]:
     if (
         type(argv) is not list
@@ -639,6 +640,7 @@ def run_bounded(
         or timeout_seconds <= 0
         or type(output_limit) is not int
         or output_limit < 1
+        or before_group_kill is not None and not callable(before_group_kill)
     ):
         raise BenchmarkError("PROCESS_ARGUMENT")
     try:
@@ -657,12 +659,21 @@ def run_bounded(
     threads: list[threading.Thread] = []
     streams: list[Any] = []
     cleanup_seconds = min(0.5, float(timeout_seconds))
+    group_killed = False
 
     def kill_group() -> None:
+        nonlocal group_killed
+        if group_killed:
+            return
+        group_killed = True
         try:
-            os.killpg(process.pid, signal.SIGKILL)
-        except ProcessLookupError:
-            pass
+            if before_group_kill is not None:
+                before_group_kill(process.pid)
+        finally:
+            try:
+                os.killpg(process.pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
 
     def cleanup() -> None:
         kill_group()

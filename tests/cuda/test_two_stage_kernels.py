@@ -7,6 +7,9 @@ qualification work on a CUDA-capable runner.
 from __future__ import annotations
 
 from pathlib import Path
+import random
+
+from poker_knight_ng import _cuda_runtime
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -53,3 +56,44 @@ def test_replacement_source_consumes_only_approved_simulation_and_reduction_head
     assert '#include "reduce.cuh"' in text
     for forbidden in ("constants.cuh", "rng.cuh", "hand_evaluator.cuh", "icm_calculator.cuh", "board_analyzer.cuh", "cooperative_groups"):
         assert forbidden not in text
+
+
+def _two_stage_host_reduce(records: list[dict[str, object]], width: int = 128) -> dict[str, object]:
+    """Executable host mirror of each CUDA lane fold plus the fixed tree result."""
+    lanes = [_cuda_runtime.empty_aggregate_record() for _ in range(width)]
+    for index, record in enumerate(records):
+        lanes[index % width] = _cuda_runtime._merge(record, lanes[index % width])
+    stride = width // 2
+    while stride:
+        for index in range(stride):
+            lanes[index] = _cuda_runtime._merge(lanes[index + stride], lanes[index])
+        stride //= 2
+    return lanes[0]
+
+
+def _naive_host_reduce(records: list[dict[str, object]]) -> dict[str, object]:
+    result = _cuda_runtime.empty_aggregate_record()
+    for record in records:
+        result = _cuda_runtime._merge(record, result)
+    return result
+
+
+def _record(value: int) -> dict[str, object]:
+    record = _cuda_runtime.empty_aggregate_record()
+    record.update({
+        "completed_trials": value,
+        "unique_wins": value % 2,
+        "losses": value % 3,
+        "equity_share_units": value * 420,
+        "tie_by_other_winners": [value % 5] + [0] * 5,
+        "hero_category_counts": [value] + [0] * 8,
+        "rejection_lo": value,
+    })
+    return record
+
+
+def test_two_stage_shared_reduction_matches_naive_host_oracle_for_fixed_and_random_counts() -> None:
+    randomizer = random.Random(0xC0FFEE)
+    for count in (0, 1, 2, 127, 128, 129, 257, 513):
+        values = [_record(randomizer.randrange(1, 1000)) for _ in range(count)]
+        assert _two_stage_host_reduce(values) == _naive_host_reduce(values)
