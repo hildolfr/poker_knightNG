@@ -235,6 +235,13 @@ def _report_cleanup_failures(failures: list[BaseException]) -> None:
     raise ListenerCleanupError("listener cleanup failed") from failures[0]
 
 
+def _first_cleanup_base_exception(failures: list[BaseException]) -> BaseException | None:
+    for failure in failures:
+        if not isinstance(failure, Exception):
+            return failure
+    return None
+
+
 class L1Listener:
     """Retained server, namespace lease, and created socket identity."""
 
@@ -385,6 +392,9 @@ async def _construct_l1_listener(
                 failure.add_note(f"cleanup failure: {type(cleanup_failure).__name__}")
             except Exception:
                 pass
+        cleanup_base = _first_cleanup_base_exception(cleanup_failures)
+        if cleanup_base is not None:
+            raise cleanup_base
         if not isinstance(failure, Exception):
             raise
         if isinstance(failure, ListenerConstructionError):

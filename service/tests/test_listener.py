@@ -383,6 +383,21 @@ def test_construction_process_control_signal_propagates_after_cleanup(monkeypatc
     assert fake.closed_fds == [fake.lock_fd, fake.parent_fd]
 
 
+def test_construct_failure_propagates_cleanup_base_exception(monkeypatch) -> None:
+    from poker_knight_ng_service import listener
+
+    class Stop(BaseException):
+        pass
+
+    fake = _ClosedSyscalls()
+    fake.faults["server-start"] = RuntimeError("construction")
+    fake.faults["server-close"] = Stop("shutdown")
+
+    with pytest.raises(Stop):
+        _run(listener._construct_l1_listener(_resolved(monkeypatch), fake))
+    assert fake.closed_fds == [fake.lock_fd, fake.parent_fd]
+
+
 def test_close_process_control_signal_propagates_after_cleanup(monkeypatch) -> None:
     from poker_knight_ng_service import listener
 
