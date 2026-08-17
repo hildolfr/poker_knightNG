@@ -269,6 +269,7 @@ def test_forged_adapted_route_fails_before_admission(monkeypatch) -> None:
         held.release()
 
 
+
 @pytest.mark.parametrize("stage", ["construct", "solve", "serialize"])
 def test_base_exception_propagates_and_releases_lease(monkeypatch, stage: str) -> None:
     from poker_knight_ng_service import execution
@@ -297,6 +298,73 @@ def test_base_exception_propagates_and_releases_lease(monkeypatch, stage: str) -
 
     with pytest.raises(Stop):
         execution.execute_solve(_adapted())
+
+    lease = admit_solve()
+    lease.release()
+
+
+@pytest.mark.parametrize("stage", ["construct", "solve", "serialize"])
+@pytest.mark.parametrize(
+    "backend,target,expected_engine",
+    [
+        ("cpu_reference", b"/v1/solve", "CPUReferenceEngine"),
+        ("cuda", b"/v1/solve", "CUDAEngine"),
+        ("cuda", b"/v1/solve-cuda", "CUDAEngine"),
+    ],
+)
+def test_auto_route_and_explicit_route_base_exception_propagates_and_releases_lease(
+    monkeypatch,
+    stage: str,
+    backend: str,
+    target: bytes,
+    expected_engine: str,
+) -> None:
+    from poker_knight_ng_service import execution
+    from poker_knight_ng_service.admission import admit_solve
+
+    class Stop(BaseException):
+        pass
+
+    observed: list[str] = []
+
+    class SelectedEngine:
+        def __init__(self) -> None:
+            if stage == "construct":
+                raise Stop
+
+        def solve(self, request):
+            observed.append(object.__getattribute__(request, "backend"))
+            if stage == "solve":
+                raise Stop
+            return object()
+
+    def serialize(result, request):
+        if stage == "serialize":
+            raise Stop
+        return {"backend": object.__getattribute__(request, "backend")}
+
+    class Forbidden:
+        def __init__(self) -> None:
+            pytest.fail(f"unexpected {expected_engine} construction")
+
+        def solve(self, request):
+            raise AssertionError("forbidden solve path")
+
+    if expected_engine == "CPUReferenceEngine":
+        monkeypatch.setattr(execution, "CPUReferenceEngine", SelectedEngine)
+        monkeypatch.setattr(execution, "CUDAEngine", Forbidden)
+    else:
+        monkeypatch.setattr(execution, "CPUReferenceEngine", Forbidden)
+        monkeypatch.setattr(execution, "CUDAEngine", SelectedEngine)
+    monkeypatch.setattr(execution, "serialize_equity_result", serialize)
+
+    with pytest.raises(Stop):
+        execution.execute_solve(_adapted(backend=backend, target=target))
+
+    if stage in {"solve", "serialize"}:
+        assert observed == [backend]
+    else:
+        assert observed == []
 
     lease = admit_solve()
     lease.release()

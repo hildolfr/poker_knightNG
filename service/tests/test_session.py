@@ -57,9 +57,9 @@ def cpu_request() -> bytes:
     )
 
 
-def solve_request(body: bytes) -> bytes:
+def solve_request(body: bytes, *, target: bytes = b"/v1/solve") -> bytes:
     return (
-        b"POST /v1/solve HTTP/1.1\r\nHost: local\r\n"
+        b"POST " + target + b" HTTP/1.1\r\nHost: local\r\n"
         b"Content-Type: application/json\r\nContent-Length: "
         + str(len(body)).encode("ascii")
         + b"\r\n\r\n"
@@ -115,6 +115,69 @@ def test_cpu_session_executes_once_and_sends_canonical_success() -> None:
     assert payload["backend"] == "cpu_reference"
     assert payload["completed_trials"] == "1"
     assert "correlation_id" not in payload
+    assert session.close_count == 1
+
+
+
+
+def test_auto_route_cuda_session_executes_once_and_marks_cuda_backend(monkeypatch) -> None:
+    import poker_knight_ng_service.routing as routing
+    import poker_knight_ng_service.session as coordinator
+
+    observed = {}
+
+    async def fake_execute(adapted):
+        observed["route"] = object.__getattribute__(adapted, "route")
+        observed["backend"] = object.__getattribute__(object.__getattribute__(adapted, "request"), "backend")
+        return {
+            "backend": observed["backend"],
+            "completed_trials": "1",
+        }
+
+    monkeypatch.setattr(coordinator, "execute_solve_async", fake_execute)
+    body = (
+        b'{"backend":"cuda","board_cards":[],"contract_version":"v1",'
+        b'"hero_cards":["As","Kd"],"opponent_count":"1","requested_trials":"1",'
+        b'"rng":{"algorithm_id":"poker-knight-ng/philox4x32-10",'
+        b'"algorithm_version":"1"},"seed":"0x0000000000000001"}'
+    )
+    session = MemorySession(solve_request(body, target=b"/v1/solve"))
+
+    asyncio.run(coordinator.handle_one_session(session))
+
+    assert observed["route"] == routing.Route.AUTO_SOLVE
+    assert observed["backend"] == "cuda"
+    head, body = session.sent[0].split(b"\r\n\r\n", 1)
+    assert head.startswith(b"HTTP/1.1 200 \r\n")
+    payload = json.loads(body)
+    assert payload["backend"] == "cuda"
+    assert payload["completed_trials"] == "1"
+    assert session.close_count == 1
+
+
+def test_explicit_cuda_route_rejects_cpu_backend_before_execution(monkeypatch) -> None:
+    import poker_knight_ng_service.session as coordinator
+
+    async def forbidden_execute(adapted):
+        raise AssertionError("cpu route entered execution")
+
+    monkeypatch.setattr(coordinator, "execute_solve_async", forbidden_execute)
+
+    body = (
+        b'{"backend":"cpu_reference","board_cards":[],"contract_version":"v1",'
+        b'"hero_cards":["As","Kd"],"opponent_count":"1","requested_trials":"1",'
+        b'"rng":{"algorithm_id":"poker-knight-ng/philox4x32-10",'
+        b'"algorithm_version":"1"},"seed":"0x0000000000000001"}'
+    )
+    session = MemorySession(solve_request(body, target=b"/v1/solve-cuda"))
+
+    asyncio.run(coordinator.handle_one_session(session))
+
+    assert len(session.sent) == 1
+    head, body = session.sent[0].split(b"\r\n\r\n", 1)
+    assert head.startswith(b"HTTP/1.1 400 \r\n")
+    payload = json.loads(body)
+    assert payload["code"] == "UNSUPPORTED_REQUEST"
     assert session.close_count == 1
 
 

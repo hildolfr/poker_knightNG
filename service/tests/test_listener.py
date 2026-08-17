@@ -522,6 +522,38 @@ def test_real_paused_asyncio_server_accepts_only_after_explicit_start(tmp_path) 
     _run(scenario())
 
 
+
+def test_cleanup_base_exception_from_target_reinspection_propagates(monkeypatch) -> None:
+    from poker_knight_ng_service import listener
+
+    class Stop(BaseException):
+        pass
+
+    fake = _ClosedSyscalls()
+    built = _run(listener._construct_l1_listener(_resolved(monkeypatch), fake))
+    fake.faults["boundary:cleanup-reinspect-to-unlink"] = Stop()
+
+    with pytest.raises(Stop):
+        _run(built.close())
+
+
+
+def test_cleanup_base_exception_from_close_fd_propagates_and_runs_all_fds(monkeypatch) -> None:
+    from poker_knight_ng_service import listener
+
+    class Stop(BaseException):
+        pass
+
+    fake = _ClosedSyscalls()
+    built = _run(listener._construct_l1_listener(_resolved(monkeypatch), fake))
+    fake.faults[f"close-fd:{fake.lock_fd}"] = Stop()
+
+    with pytest.raises(Stop):
+        _run(built.close())
+
+    assert fake.closed_fds == [fake.lock_fd, fake.parent_fd]
+
+
 def test_cleanup_mixed_failures_prefers_base_exception_over_ordinary(monkeypatch) -> None:
     from poker_knight_ng_service import listener
 
