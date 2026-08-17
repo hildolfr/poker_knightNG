@@ -13,7 +13,7 @@ The provided systemd unit starts the service directly and is wired to the socket
 unit as a socket-activated on-demand service. In either launch mode, runtime
 starts with:
 
-`poker-knight-ng-service --max-sessions 16 --graceful-drain-seconds 5`.
+`poker-knight-ng-service`.
 This is compatible with the current bounded listener contract and enforces:
 
 - fixed, exact ownership modes on `/run/poker-knight-ng`

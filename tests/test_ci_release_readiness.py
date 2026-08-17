@@ -8,6 +8,8 @@ import re
 
 ROOT = Path(__file__).parents[1]
 WORKFLOW = ROOT / ".github" / "workflows" / "ci.yml"
+PRERELEASE_WORKFLOW = ROOT / ".github" / "workflows" / "release-prerelease.yml"
+PYPI_WORKFLOW = ROOT / ".github" / "workflows" / "publish-pypi.yml"
 RELEASE = ROOT / "docs" / "release-process.md"
 ROADMAP = ROOT / "docs" / "roadmap-status.md"
 PROTECTION = ROOT / "docs" / "evidence" / "main-branch-protection.json"
@@ -41,7 +43,32 @@ def test_ci_is_bounded_pinned_and_preserves_historical_git_authority() -> None:
     assert action_refs and all(re.fullmatch(r"[0-9a-f]{40}", ref) for ref in action_refs)
 
 
-def test_release_process_is_fail_closed_and_history_preserving() -> None:
+def test_manual_release_workflows_preserve_approval_and_publication_boundaries() -> None:
+    prerelease = PRERELEASE_WORKFLOW.read_text("utf-8")
+    pypi = PYPI_WORKFLOW.read_text("utf-8")
+
+    assert "workflow_dispatch:" in prerelease
+    assert "push:" not in prerelease and "pull_request:" not in prerelease
+    assert "contents: write" in prerelease
+    assert "github.ref == 'refs/heads/main'" in prerelease
+    assert "refusing to reuse or move existing tag" in prerelease
+    assert "gh release view \"$TAG\"" in prerelease
+    assert "--prerelease" in prerelease
+    assert "SHA256SUMS" in prerelease
+    assert "*service*" in prerelease
+    assert "uv publish" not in prerelease
+
+    assert "workflow_dispatch:" in pypi
+    assert "environment:\n      name: pypi" in pypi
+    assert "id-token: write" in pypi
+    assert "contents: read" in pypi
+    assert "github.ref_type == 'tag'" in pypi
+    assert "gh release download \"$TAG\" --pattern SHA256SUMS" in pypi
+    assert "diff -u approved/SHA256SUMS SHA256SUMS" in pypi
+    assert "uv publish --trusted-publishing always dist/*" in pypi
+    assert "*service*" in pypi
+
+
     text = RELEASE.read_text("utf-8")
     lowered = text.lower()
     assert "explicit owner approval" in lowered
@@ -64,6 +91,7 @@ def test_roadmap_tracks_ci_and_promotion_as_distinct_states() -> None:
     assert "evidence/main-branch-protection.json" in protection_detail
     assert rows["Automated CPU CI"][0] == "**Active**"
     assert rows["Release procedure"][0] == "**Implemented**"
+    assert rows["Automated release pipeline"][0] == "**Implemented**"
     assert rows["GitHub release"][0] == "**Untouched**"
 
 

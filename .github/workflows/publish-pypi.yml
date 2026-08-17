@@ -1,0 +1,113 @@
+name: Publish approved prerelease to PyPI
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version already released on GitHub; must match the selected v<version> tag"
+        required: true
+        type: string
+
+# Upload is deliberately a separate manual workflow and approval boundary from
+# tag/release creation. Configure the repository's `pypi` environment with the
+# required owner reviewers and PyPI trusted publishing for this repository.
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: package-index-prerelease-${{ inputs.version }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    environment:
+      name: pypi
+    # A dispatch must explicitly select the immutable release tag in the UI.
+    # This refuses branch/SHA refs and ensures the supplied version is exact.
+    if: github.ref_type == 'tag' && github.ref_name == format('v{0}', inputs.version)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      PYTHONHASHSEED: "0"
+      VERSION: ${{ inputs.version }}
+      TAG: v${{ inputs.version }}
+    steps:
+      - name: Check out the approved immutable tag
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          ref: ${{ github.ref }}
+
+      - name: Install Python 3.13
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.13"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+        with:
+          version: "0.11.6"
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+
+      - name: Bind publish request to the existing public prerelease
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF_TYPE" = tag
+          test "$GITHUB_REF_NAME" = "$TAG"
+          test "$GITHUB_SHA" = "$(git rev-list -n 1 "$TAG")"
+          python - <<'PY'
+          import os
+          import re
+          import tomllib
+          from pathlib import Path
+
+          version = os.environ["VERSION"]
+          metadata = tomllib.loads(Path("pyproject.toml").read_text("utf-8"))
+          if metadata["project"]["version"] != version:
+              raise SystemExit("tagged project version differs from requested PyPI version")
+          if not re.fullmatch(r"0|[1-9]\d*\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)-(?:[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)", version):
+              raise SystemExit("only the explicitly approved SemVer prerelease may be published")
+          PY
+          gh release view "$TAG" --json isPrerelease,isDraft,tagName,targetCommitish \
+            --jq 'if .isPrerelease and (.isDraft | not) and .tagName == env.TAG then empty else error("expected published prerelease") end'
+
+      - name: Rebuild exact public engine artifacts
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf dist approved
+          uv build --out-dir dist
+          mapfile -t artifacts < <(find dist -maxdepth 1 -type f -printf '%f\n' | sort)
+          expected_wheel="poker_knight_ng-${VERSION}-py3-none-any.whl"
+          expected_sdist="poker_knight_ng-${VERSION}.tar.gz"
+          test "${artifacts[*]}" = "$expected_wheel $expected_sdist"
+          ! find dist -maxdepth 1 -type f -iname '*service*' -print -quit | grep -q .
+          sha256sum dist/* > SHA256SUMS
+
+      - name: Compare every digest against approved GitHub release assets
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir approved
+          gh release download "$TAG" --pattern SHA256SUMS --dir approved
+          test "$(find approved -maxdepth 1 -type f -printf '%f\n')" = SHA256SUMS
+          (cd dist && sha256sum --check --strict ../approved/SHA256SUMS)
+          diff -u approved/SHA256SUMS SHA256SUMS
+          gh release view "$TAG" --json assets --jq '.assets[].name' | sort > approved/asset-names
+          printf '%s\n' "poker_knight_ng-${VERSION}-py3-none-any.whl" "poker_knight_ng-${VERSION}.tar.gz" SHA256SUMS | sort > approved/expected-asset-names
+          diff -u approved/expected-asset-names approved/asset-names
+
+      - name: Publish the previously approved artifacts with PyPI trusted publishing
+        shell: bash
+        run: |
+          set -euo pipefail
+          # No token is read from repository secrets. uv exchanges this job's
+          # OIDC identity with PyPI only after the protected environment allows it.
+          uv publish --trusted-publishing always dist/*

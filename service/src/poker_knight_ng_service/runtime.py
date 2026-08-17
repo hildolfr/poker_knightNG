@@ -19,6 +19,14 @@ DEFAULT_MAX_SESSIONS = 16
 _DEFAULT_GRACEFUL_DRAIN_SECONDS = 5.0
 
 
+def _coerce_float_seconds(value: object) -> float:
+    if type(value) is int:
+        return float(value)
+    if type(value) is float:
+        return value
+    raise TypeError("graceful_drain_seconds must be numeric")
+
+
 class ServiceRuntime:
     """Service lifecycle coordinator with bounded session admission."""
 
@@ -30,14 +38,14 @@ class ServiceRuntime:
     ) -> None:
         if type(max_sessions) is not int or max_sessions <= 0:
             raise ValueError("max_sessions must be a positive integer")
-        if type(graceful_drain_seconds) is not float and type(graceful_drain_seconds) is not int:
-            raise TypeError("graceful_drain_seconds must be numeric")
-        if graceful_drain_seconds < 0:
+        graceful_seconds = _coerce_float_seconds(graceful_drain_seconds)
+        if not (graceful_seconds >= 0):
             raise ValueError("graceful_drain_seconds must be non-negative")
 
         self._max_sessions = max_sessions
-        self._graceful_drain_seconds = float(graceful_drain_seconds)
+        self._graceful_drain_seconds = graceful_seconds
         self._active_sessions = 0
+        self._session_tasks: set[asyncio.Task[None]] = set()
         self._listener: L1Listener | None = None
         self._stopping = False
 
@@ -45,10 +53,16 @@ class ServiceRuntime:
         if not self._admit_session():
             writer.close()
             return
+
+        task = asyncio.current_task()
+        if task is not None:
+            self._session_tasks.add(task)
         try:
             await handle_one_session(AsyncPeer(reader, writer))
         finally:
             self._release_session()
+            if task is not None:
+                self._session_tasks.discard(task)
 
     def _admit_session(self) -> bool:
         if self._stopping:
@@ -89,27 +103,23 @@ class ServiceRuntime:
             await self._listener.close()
 
         deadline = asyncio.get_running_loop().time() + self._graceful_drain_seconds
-        while self._active_sessions > 0 and asyncio.get_running_loop().time() < deadline:
+        while self._session_tasks and asyncio.get_running_loop().time() < deadline:
             await asyncio.sleep(0.050)
 
-        while self._active_sessions > 0:
+        while self._session_tasks:
             await asyncio.sleep(0.050)
+
+    @property
+    def session_tasks(self) -> int:
+        return len(self._session_tasks)
 
 
 def add_runtime_arguments(parser: argparse.ArgumentParser) -> None:
-    """Attach runtime CLI arguments to an ArgumentParser."""
+    """Attach fixed runtime profile arguments to an ArgumentParser."""
 
-    parser.add_argument(
-        "--max-sessions",
-        type=int,
-        default=DEFAULT_MAX_SESSIONS,
-        help="maximum concurrent accepted sessions",
-    )
-    parser.add_argument(
-        "--graceful-drain-seconds",
-        type=float,
-        default=_DEFAULT_GRACEFUL_DRAIN_SECONDS,
-        help="time to wait for non-admitted work before indefinite admit-hold drain",
+    parser.epilog = (
+        "Production runtime is fixed by ADR 0007/0005: max_sessions=16 and "
+        "graceful_drain_seconds=5.0"
     )
 
 

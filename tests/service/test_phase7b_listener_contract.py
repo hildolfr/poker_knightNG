@@ -124,10 +124,10 @@ def test_listener_construction_authority_is_hash_bound_and_closed() -> None:
     assert profile["l1_scope"] == {
         "accept_behavior": "close-without-session-scheduling",
         "automatic_routing": "forbidden",
-        "connection_cap": "deferred-l2",
+        "connection_cap": "bounded-16",
         "deployment": "forbidden",
         "logging": "forbidden",
-        "shutdown_manager": "deferred-l3",
+        "shutdown_manager": "implemented",
     }
     assert profile["l3_shutdown"] == {
         "admitted_noncancellable_solve_after_deadline": "wait-without-deadline",

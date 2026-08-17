@@ -20,10 +20,8 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
 async def _run(argv: list[str] | None = None) -> None:
     args = _parse_args(argv)
-    runtime = ServiceRuntime(
-        max_sessions=args.max_sessions,
-        graceful_drain_seconds=args.graceful_drain_seconds,
-    )
+    del args
+    runtime = ServiceRuntime()
     stop = asyncio.Event()
 
     try:

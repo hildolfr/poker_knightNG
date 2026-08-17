@@ -1,0 +1,178 @@
+name: Create prerelease
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Package version from pyproject.toml (must be a SemVer prerelease)"
+        required: true
+        type: string
+      release_notes:
+        description: "Owner-reviewed public prerelease notes (no private evidence)"
+        required: true
+        type: string
+
+# This workflow is intentionally manual. It never runs from push, pull_request,
+# or a tag event, and it is the only workflow allowed to create a release tag.
+permissions:
+  contents: write
+
+concurrency:
+  group: prerelease-${{ inputs.version }}
+  cancel-in-progress: false
+
+jobs:
+  create-prerelease:
+    # Requiring the dispatch to target main prevents a branch build from being
+    # promoted or tagged. Repository ruleset/owner approval remains required
+    # before a maintainer can dispatch this workflow.
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      PYTHONHASHSEED: "0"
+      VERSION: ${{ inputs.version }}
+      TAG: v${{ inputs.version }}
+    steps:
+      - name: Check out the approved main candidate
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Install Python 3.13
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.13"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+        with:
+          version: "0.11.6"
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+
+      - name: Refuse unsafe or stale release inputs
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF" = "refs/heads/main"
+          test "$GITHUB_SHA" = "$(git rev-parse HEAD)"
+          test "$GITHUB_SHA" = "$(git rev-parse origin/main)"
+          python - <<'PY'
+          import os
+          import re
+          import tomllib
+          from pathlib import Path
+
+          version = os.environ["VERSION"]
+          metadata = tomllib.loads(Path("pyproject.toml").read_text("utf-8"))
+          if metadata["project"]["version"] != version:
+              raise SystemExit("workflow version must exactly match pyproject.toml")
+          if not re.fullmatch(r"0|[1-9]\d*\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)-(?:[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)", version):
+              raise SystemExit("only SemVer prerelease versions may be released")
+          PY
+          git fetch --tags --force origin
+          if git rev-parse --verify --quiet "refs/tags/$TAG" >/dev/null; then
+            echo "refusing to reuse or move existing tag $TAG" >&2
+            exit 1
+          fi
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "refusing to replace existing GitHub release $TAG" >&2
+            exit 1
+          fi
+
+      - name: Re-run public release gates
+        run: |
+          set -euo pipefail
+          uv sync --frozen --group dev
+          uv run pytest -q
+          uv run python tools/generate_oracle_fixtures.py --verify
+          uv run python tools/qualify_seven_card_corpus.py --verify
+          uv run python tools/generate_rng_seed_bank.py --verify
+          uv run python tools/verify_cuda_release_qualification.py
+          uv run python tools/verify_cuda_statistical_release_qualification.py
+          uv run python tools/project_cuda_benchmark_baseline.py verify \
+            validation/holdem/v1/cuda_benchmark_baseline.json \
+            --manifest validation/holdem/v1/manifests/cuda_benchmark_baseline.sha256 \
+            --repo-root "$PWD" \
+            --source-commit 71393540fefba4b987a446e0d2ec954e72bbe2e2
+
+      - name: Build and inspect only public engine artifacts
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf dist release-check
+          uv build --out-dir dist
+          mapfile -t artifacts < <(find dist -maxdepth 1 -type f -printf '%f\n' | sort)
+          expected_wheel="poker_knight_ng-${VERSION}-py3-none-any.whl"
+          expected_sdist="poker_knight_ng-${VERSION}.tar.gz"
+          test "${artifacts[*]}" = "$expected_wheel $expected_sdist"
+          ! find dist -maxdepth 1 -type f -iname '*service*' -print -quit | grep -q .
+          python - <<'PY'
+          import os
+          import tarfile
+          import zipfile
+          from pathlib import Path
+
+          dist = Path("dist")
+          wheel = dist / f"poker_knight_ng-{os.environ['VERSION']}-py3-none-any.whl"
+          sdist = dist / f"poker_knight_ng-{os.environ['VERSION']}.tar.gz"
+          required = {
+              "src/poker_knight_ng/cli.py", "src/poker_knight_ng/contract/serialize.py",
+              "src/poker_knight_ng/schemas/v1/equity-result.schema.json",
+              "src/poker_knight_ng/cuda-sources/poker_kernel.cu", "README.md", "LICENSE",
+          }
+          with tarfile.open(sdist) as archive:
+              names = {name.split("/", 1)[-1] for name in archive.getnames() if "/" in name}
+          if not required <= names:
+              raise SystemExit(f"sdist missing required public files: {sorted(required - names)}")
+          with zipfile.ZipFile(wheel) as archive:
+              names = set(archive.namelist())
+          required_wheel = {name.removeprefix("src/") for name in required if name.startswith("src/")}
+          if not required_wheel <= names:
+              raise SystemExit(f"wheel missing required package files: {sorted(required_wheel - names)}")
+          forbidden = ("service/", "validation/", "tests/", "benchmarks/")
+          if any(name.startswith(forbidden) or "/tests/" in name for name in names):
+              raise SystemExit("wheel contains non-public release content")
+          PY
+          sha256sum dist/* > SHA256SUMS
+
+      - name: Smoke-test the exact wheel in a fresh Python 3.13 environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          uv venv --python 3.13 release-check
+          uv pip install --python release-check/bin/python --no-deps "dist/poker_knight_ng-${VERSION}-py3-none-any.whl"
+          release-check/bin/python -I -c "import importlib.util, poker_knight_ng; assert poker_knight_ng.__version__ == '$VERSION'; assert importlib.util.find_spec('cupy') is None"
+          release-check/bin/poker-knight-ng --help
+          printf '%s\n' '{"backend":"cpu_reference","board_cards":["2s","3h","Td"],"contract_version":"v1","hero_cards":["As","Ah"],"opponent_count":"2","requested_trials":"1","rng":{"algorithm_id":"poker-knight-ng/philox4x32-10","algorithm_version":"1"},"seed":"0x0123456789abcdef"}' | release-check/bin/poker-knight-ng solve > release-check/result.json
+          release-check/bin/python -m json.tool release-check/result.json >/dev/null
+
+      - name: Preserve reviewable artifacts for this run
+        uses: actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08 # v4.6.0
+        with:
+          name: prerelease-${{ inputs.version }}-${{ github.sha }}
+          if-no-files-found: error
+          retention-days: 14
+          path: |
+            dist/poker_knight_ng-${{ inputs.version }}-py3-none-any.whl
+            dist/poker_knight_ng-${{ inputs.version }}.tar.gz
+            SHA256SUMS
+
+      - name: Create immutable annotated tag and prerelease
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_NOTES: ${{ inputs.release_notes }}
+        run: |
+          set -euo pipefail
+          git tag -a "$TAG" "$GITHUB_SHA" -m "Poker Knight NG $TAG"
+          git push origin "refs/tags/$TAG"
+          gh release create "$TAG" \
+            --target "$GITHUB_SHA" \
+            --title "Poker Knight NG $TAG" \
+            --prerelease \
+            --notes "$RELEASE_NOTES" \
+            "dist/poker_knight_ng-${VERSION}-py3-none-any.whl" \
+            "dist/poker_knight_ng-${VERSION}.tar.gz" \
+            SHA256SUMS
