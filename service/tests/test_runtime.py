@@ -69,10 +69,13 @@ async def _hold_open_handle(_: object, on_admission: object | None = None) -> No
 
 def test_runtime_rejects_17th_connection_without_scheduling(monkeypatch: pytest.MonkeyPatch) -> None:
     calls = {"count": 0}
+    all_admitted_handlers_entered = asyncio.Event()
 
     async def delayed_handle(_: object, on_admission: object | None = None) -> None:
         del on_admission
         calls["count"] += 1
+        if calls["count"] == runtime.DEFAULT_MAX_SESSIONS:
+            all_admitted_handlers_entered.set()
         await _hold_open_handle(_)
 
     monkeypatch.setattr(runtime, "handle_one_session", delayed_handle)
@@ -90,7 +93,7 @@ def test_runtime_rejects_17th_connection_without_scheduling(monkeypatch: pytest.
             )
             for writer in writers
         ]
-        await asyncio.sleep(0)
+        await asyncio.wait_for(all_admitted_handlers_entered.wait(), timeout=1)
 
         assert calls["count"] == 16
         assert built.active_sessions == 16
@@ -119,9 +122,11 @@ class _NoopListener:
 
 def _run_runtime_stop_test(monkeypatch: pytest.MonkeyPatch) -> bool:
     called = [0]
+    constructed = asyncio.Event()
 
     async def fake_construct(identity, callback):  # noqa: ARG001
         assert callback is not None
+        constructed.set()
         return _NoopListener(called)
 
     async def run_case() -> None:
@@ -145,7 +150,7 @@ def _run_runtime_stop_test(monkeypatch: pytest.MonkeyPatch) -> bool:
         shutdown = asyncio.Event()
         server = runtime.build_runtime()
         task = asyncio.create_task(server.serve(shutdown))
-        await asyncio.sleep(0)
+        await asyncio.wait_for(constructed.wait(), timeout=1)
         shutdown.set()
         await task
 
@@ -167,15 +172,17 @@ def test_runtime_cancellation_closes_listener_and_clears_readiness(monkeypatch: 
 
     async def run_case() -> None:
         listener = ListenerWithClose()
+        constructed = asyncio.Event()
 
         async def fake_construct(identity, callback):  # noqa: ARG001
+            constructed.set()
             return listener
 
         monkeypatch.setattr(runtime, "resolve_production_identity", lambda: object())
         monkeypatch.setattr(runtime, "construct_listener_with_callback", fake_construct)
         service = runtime.ServiceRuntime()
         task = asyncio.create_task(service.serve(asyncio.Event()))
-        await asyncio.sleep(0)
+        await asyncio.wait_for(constructed.wait(), timeout=1)
         task.cancel()
         with pytest.raises(asyncio.CancelledError):
             await task
@@ -187,8 +194,11 @@ def test_runtime_cancellation_closes_listener_and_clears_readiness(monkeypatch: 
 
 
 def test_runtime_stop_closes_pre_admission_connection_without_deadline(monkeypatch: pytest.MonkeyPatch) -> None:
+    entered = asyncio.Event()
+
     async def delayed_handle(peer, on_admission: object | None = None) -> None:
         del on_admission
+        entered.set()
         await peer.wait_closed()
 
     async def run_case() -> None:
@@ -200,7 +210,7 @@ def test_runtime_stop_closes_pre_admission_connection_without_deadline(monkeypat
         conn_task = asyncio.create_task(
             service._on_connection(cast("asyncio.StreamReader", object()), cast("asyncio.StreamWriter", writer))
         )
-        await asyncio.sleep(0)
+        await asyncio.wait_for(entered.wait(), timeout=1)
         await asyncio.wait_for(service.stop(), 1)
         await conn_task
 
@@ -212,26 +222,27 @@ def test_runtime_stop_closes_pre_admission_connection_without_deadline(monkeypat
 def test_runtime_waits_for_admitted_connection_after_grace_period(monkeypatch: pytest.MonkeyPatch) -> None:
     async def run_case() -> None:
         proceed = asyncio.Event()
+        admitted = asyncio.Event()
         mark = {"admitted": False}
 
         async def admitted_handle(peer, on_admission=None) -> None:
             assert on_admission is not None
             on_admission()
             mark["admitted"] = True
+            admitted.set()
             await proceed.wait()
             peer.close()
 
-        service = runtime.ServiceRuntime()
+        service = runtime.ServiceRuntime(_test_graceful_drain_seconds=0.01)
         monkeypatch.setattr(runtime, "handle_one_session", admitted_handle)
 
         writer = FakeWriter()
         conn_task = asyncio.create_task(
             service._on_connection(cast("asyncio.StreamReader", object()), cast("asyncio.StreamWriter", writer))
         )
-        await asyncio.sleep(0)
+        await asyncio.wait_for(admitted.wait(), timeout=1)
 
         stop_task = asyncio.create_task(service.stop())
-        await asyncio.sleep(service._graceful_drain_seconds / 2)
         assert not stop_task.done()
         assert mark["admitted"]
         assert not writer.closed

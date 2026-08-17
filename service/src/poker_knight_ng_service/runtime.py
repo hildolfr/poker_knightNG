@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 
 from .identity import resolve_production_identity
@@ -42,6 +42,11 @@ class ServiceRuntime:
         *,
         max_sessions: int = DEFAULT_MAX_SESSIONS,
         graceful_drain_seconds: float = _DEFAULT_GRACEFUL_DRAIN_SECONDS,
+        _test_listener_factory: Callable[
+            [object, Callable[[asyncio.StreamReader, asyncio.StreamWriter], object]], Awaitable[L1Listener]
+        ]
+        | None = None,
+        _test_graceful_drain_seconds: float | None = None,
     ) -> None:
         if type(max_sessions) is not int:
             raise TypeError("max_sessions must be an int")
@@ -55,6 +60,13 @@ class ServiceRuntime:
             raise ValueError(
                 f"graceful_drain_seconds is fixed at {_DEFAULT_GRACEFUL_DRAIN_SECONDS}"
             )
+        # These underscored seams exist solely to exercise the runtime over a
+        # real temporary Unix socket.  Production construction always uses the
+        # identity-bound canonical listener and fixed five-second profile.
+        if _test_graceful_drain_seconds is not None:
+            graceful_seconds = _coerce_float_seconds(_test_graceful_drain_seconds)
+            if not (graceful_seconds >= 0):
+                raise ValueError("_test_graceful_drain_seconds must be non-negative")
 
         self._max_sessions = max_sessions
         self._graceful_drain_seconds = graceful_seconds
@@ -64,6 +76,7 @@ class ServiceRuntime:
         self._rejected_sessions = 0
         self._session_tasks: dict[asyncio.Task[None], _AcceptedSession] = {}
         self._listener: L1Listener | None = None
+        self._listener_factory = _test_listener_factory or construct_listener_with_callback
         self._stopping = False
 
     async def _on_connection(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
@@ -149,7 +162,7 @@ class ServiceRuntime:
         """Serve until shutdown is requested."""
 
         identity = resolve_production_identity()
-        self._listener = await construct_listener_with_callback(identity, self._on_connection)
+        self._listener = await self._listener_factory(identity, self._on_connection)
         try:
             await shutdown.wait()
         finally:
@@ -164,8 +177,12 @@ class ServiceRuntime:
             return
         self._stopping = True
 
+        listener_close: asyncio.Future[None] | None = None
         if self._listener is not None:
-            await self._listener.close()
+            # L1 cleanup waits for accepted transports.  Start it before the
+            # drain so it stops accepting immediately, while this runtime can
+            # still close or drain the tracked callbacks that release it.
+            listener_close = asyncio.ensure_future(self._listener.close())
 
         self._close_non_admitted()
 
@@ -176,10 +193,21 @@ class ServiceRuntime:
         while self._has_non_admitted_tasks() and asyncio.get_running_loop().time() < deadline:
             await asyncio.sleep(0.050)
 
+        # A peer can keep its write half open after our close(), leaving its
+        # read suspended forever.  The bounded pre-admission phase therefore
+        # cancels only the still-idle handler tasks before admitted work drains.
+        idle_tasks = [task for task, state in self._session_tasks.items() if not state.admitted]
+        for task in idle_tasks:
+            task.cancel()
+        if idle_tasks:
+            await asyncio.gather(*idle_tasks, return_exceptions=True)
+
         # ADR 0005 section 6: an admitted solve drains without a deadline.
         # Only admitted sessions may hold shutdown open past the bound.
         while self._has_admitted_tasks():
             await asyncio.sleep(0.050)
+        if listener_close is not None:
+            await listener_close
 
     @property
     def session_tasks(self) -> int:
