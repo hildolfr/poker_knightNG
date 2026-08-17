@@ -41,7 +41,7 @@ def test_valid_cpu_route_adapts_through_frozen_equity_request_parser() -> None:
 
     adapted = adapt_solve_request(admitted_request(valid_body()))
 
-    assert adapted.route is Route.CPU_SOLVE
+    assert adapted.route is Route.AUTO_SOLVE
     assert adapted.request.backend == "cpu_reference"
     assert adapted.request.requested_trials == 1000
     assert adapted.request.seed == 1
@@ -122,26 +122,23 @@ def test_frozen_equity_request_problem_codes_are_preserved(
     assert caught.value.code == expected
 
 
-def test_cpu_route_rejects_explicit_cuda_as_backend_unavailable() -> None:
+
+def test_auto_route_allows_cpu_and_cuda_backends() -> None:
+    from poker_knight_ng_service.adapter import adapt_solve_request
+    from poker_knight_ng_service.routing import Route
+
+    assert adapt_solve_request(admitted_request(valid_body())).route is Route.AUTO_SOLVE
+    assert adapt_solve_request(admitted_request(valid_body(backend="cuda"))).route is Route.AUTO_SOLVE
+
+
+def test_route_trial_cap_still_applies_for_auto_route() -> None:
     from poker_knight_ng.contract.errors import ContractProblem
     from poker_knight_ng_service.adapter import adapt_solve_request
 
     with pytest.raises(ContractProblem) as caught:
-        adapt_solve_request(admitted_request(valid_body(backend="cuda")))
+        adapt_solve_request(admitted_request(valid_body(requested_trials="1000001")))
 
-    assert caught.value.code == "BACKEND_UNAVAILABLE"
-
-
-def test_route_backend_mismatch_precedes_service_trial_cap() -> None:
-    from poker_knight_ng.contract.errors import ContractProblem
-    from poker_knight_ng_service.adapter import adapt_solve_request
-
-    with pytest.raises(ContractProblem) as caught:
-        adapt_solve_request(
-            admitted_request(valid_body(backend="cuda", requested_trials="1000001"))
-        )
-
-    assert caught.value.code == "BACKEND_UNAVAILABLE"
+    assert caught.value.code == "UNSUPPORTED_REQUEST"
 
 
 def test_cuda_route_rejects_explicit_cpu_as_unsupported_request() -> None:

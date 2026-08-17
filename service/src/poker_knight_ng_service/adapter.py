@@ -117,8 +117,6 @@ def adapt_solve_request(admitted: AdmittedRequest) -> AdaptedSolveRequest:
         raise problem("INTERNAL_ERROR")
 
     request = EquityRequest.parse(_decode_json_object(trusted.body))
-    if route is Route.CPU_SOLVE and request.backend != "cpu_reference":
-        raise problem("BACKEND_UNAVAILABLE")
     if route is Route.CUDA_SOLVE and request.backend != "cuda":
         raise problem("UNSUPPORTED_REQUEST")
     if request.requested_trials > _MAX_REQUESTED_TRIALS:

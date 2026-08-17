@@ -4,11 +4,10 @@ from __future__ import annotations
 import pytest
 
 
-def _adapted(*, backend: str = "cpu_reference"):
+def _adapted(*, backend: str = "cpu_reference", target: bytes = b"/v1/solve"):
     from poker_knight_ng_service.adapter import adapt_solve_request
     from poker_knight_ng_service.framing import AdmittedRequest
 
-    target = b"/v1/solve" if backend == "cpu_reference" else b"/v1/solve-cuda"
     body = (
         b'{"backend":"'
         + backend.encode("ascii")
@@ -84,6 +83,44 @@ def test_cuda_route_constructs_only_cuda_engine_while_admitted(monkeypatch) -> N
     def serialize(result, request):
         assert result is sentinel
         assert request is calls[0]
+        return {"backend": "cuda"}
+
+    monkeypatch.setattr(execution, "CPUReferenceEngine", ForbiddenCPU)
+    monkeypatch.setattr(execution, "CUDAEngine", FakeCUDAEngine)
+    monkeypatch.setattr(execution, "serialize_equity_result", serialize)
+
+    assert (
+        execution.execute_solve(_adapted(backend="cuda", target=b"/v1/solve-cuda"))
+        == {"backend": "cuda"}
+    )
+    assert len(calls) == 1
+
+
+def test_auto_route_constructs_cuda_engine_while_admitted(monkeypatch) -> None:
+    from poker_knight_ng.contract.errors import ContractProblem
+    from poker_knight_ng_service import execution
+    from poker_knight_ng_service.admission import admit_solve
+
+    sentinel = object()
+    calls: list[object] = []
+
+    class FakeCUDAEngine:
+        def __init__(self) -> None:
+            with pytest.raises(ContractProblem) as caught:
+                admit_solve()
+            assert caught.value.code == "RESOURCE_EXHAUSTED"
+
+        def solve(self, request):
+            calls.append(request)
+            return sentinel
+
+    class ForbiddenCPU:
+        def __init__(self) -> None:
+            pytest.fail("CPU engine constructed for auto cuda backend")
+
+    def serialize(result, request):
+        assert result is sentinel
+        assert object.__getattribute__(request, "backend") == "cuda"
         return {"backend": "cuda"}
 
     monkeypatch.setattr(execution, "CPUReferenceEngine", ForbiddenCPU)

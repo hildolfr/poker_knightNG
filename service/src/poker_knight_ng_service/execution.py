@@ -39,6 +39,9 @@ def _trusted_snapshot(adapted: AdaptedSolveRequest) -> tuple[Route, EquityReques
         elif route is Route.CUDA_SOLVE:
             if backend != "cuda":
                 raise ValueError("CUDA route/backend mismatch")
+        elif route is Route.AUTO_SOLVE:
+            if backend not in ("cpu_reference", "cuda"):
+                raise ValueError("AUTO route/backend mismatch")
         else:
             raise ValueError("unexpected solve route")
         return route, request
@@ -55,7 +58,13 @@ def _execute_admitted(
     lease._assert_active()
     route, request = _trusted_snapshot(adapted)
     try:
-        engine = CPUReferenceEngine() if route is Route.CPU_SOLVE else CUDAEngine()
+        backend = request.backend
+        if (route is Route.AUTO_SOLVE and backend == "cpu_reference") or route is Route.CPU_SOLVE:
+            engine = CPUReferenceEngine()
+        elif route is Route.CUDA_SOLVE or (route is Route.AUTO_SOLVE and backend == "cuda"):
+            engine = CUDAEngine()
+        else:
+            raise RuntimeError("unrecognized solve route")
         result = engine.solve(request)
     except ContractProblem as exc:
         if exc.code in _ENGINE_FAILURE_CODES:

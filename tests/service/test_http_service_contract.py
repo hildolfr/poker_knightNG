@@ -9,7 +9,7 @@ from typing import Any
 ROOT = Path(__file__).parents[2]
 PROFILE = ROOT / "contracts" / "service" / "v1" / "http-service-profile.json"
 MANIFEST = ROOT / "contracts" / "service" / "v1" / "http-service-profile.sha256"
-ADR = ROOT / "docs" / "adr" / "0005-private-unix-http-service.md"
+ADR = ROOT / "docs" / "adr" / "0008-automatic-cuda-routing.md"
 ROADMAP = ROOT / "docs" / "roadmap-status.md"
 SPEC = ROOT / "validation" / "holdem" / "v1" / "SPEC.md"
 
@@ -30,7 +30,7 @@ def test_profile_is_closed_and_binds_frozen_v1_documents() -> None:
     }
     assert profile["format_version"] == "poker-knight-ng-private-http-v1"
     assert profile["authority"] == {
-        "adr": "docs/adr/0005-private-unix-http-service.md",
+        "adr": "docs/adr/0008-automatic-cuda-routing.md",
         "problem_schema": {
             "path": "contracts/v1/problem.schema.json",
             "sha256": "3d85b79f6089d6bbbef21891743270d8fbc87149df9ad84be07e119a5df43c18",
@@ -66,7 +66,7 @@ def test_transport_and_socket_are_private_local_only() -> None:
     assert {"tcp", "reverse-proxy", "public-internet", "http-authentication", "cors", "websocket", "http2"} <= forbidden
 
 
-def test_routes_are_explicit_and_never_auto_route() -> None:
+def test_routes_are_explicit_and_auto_route_supported() -> None:
     profile = load_profile()
     assert profile["routes"] == [
         {
@@ -82,7 +82,7 @@ def test_routes_are_explicit_and_never_auto_route() -> None:
             "executor": "solve",
             "method": "POST",
             "path": "/v1/solve",
-            "request_backend": "cpu_reference",
+            "request_backend": "auto",
             "success_status": 200,
         },
         {
@@ -149,11 +149,11 @@ def test_response_classes_do_not_extend_v1_problem_schema() -> None:
     assert responses["success"] == "canonical-v1-result-json-line"
     assert responses["problem"] == "canonical-v1-problem-json-line"
     assert responses["problem_mapping"] == {
-        "cpu-route-cuda-backend": "BACKEND_UNAVAILABLE",
         "cuda-route-cpu-backend": "UNSUPPORTED_REQUEST",
         "engine-or-adapter-failure": "INTERNAL_ERROR",
         "service-trial-cap": "UNSUPPORTED_REQUEST",
         "solve-capacity-busy": "RESOURCE_EXHAUSTED",
+        "solve-route-invalid-backend": "UNSUPPORTED_REQUEST",
     }
     assert responses["transport_failures"] == {
         "body-read-timeout": 408,
@@ -186,10 +186,10 @@ def test_adr_freezes_security_and_deferred_implementation_boundary() -> None:
     assert "does not modify" in text and "v1 request" in text
 
 
-def test_spec_and_roadmap_do_not_claim_an_implemented_listener() -> None:
+def test_spec_and_roadmap_reflect_phase7c_status() -> None:
     spec = SPEC.read_text("utf-8")
     roadmap = ROADMAP.read_text("utf-8")
-    assert "automatic CUDA routing" in spec and "future" in spec
+    assert "automatic CUDA routing" in spec
     assert "L1 secure listener construction/adapters are implemented" in roadmap
     assert "ADR 0005" in roadmap
     phase7a = next(line for line in roadmap.splitlines() if line.startswith("| Phase 7A"))
@@ -201,4 +201,5 @@ def test_spec_and_roadmap_do_not_claim_an_implemented_listener() -> None:
     assert "ADR 0005" in phase7a
     assert "**Active**" in phase7b
     assert "listener" in phase7b.lower()
-    assert "**Not started**" in phase7c
+    assert "**Active**" in phase7c
+    assert "automatic" in phase7c.lower()

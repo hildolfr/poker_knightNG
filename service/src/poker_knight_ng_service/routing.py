@@ -7,16 +7,17 @@ from .framing import AdmittedRequest, TransportFailure
 
 
 class Route(Enum):
-    """The three routes accepted by service profile v1."""
+    """The four routes accepted by service profile v1."""
 
     HEALTH = "health"
+    AUTO_SOLVE = "auto-solve"
     CPU_SOLVE = "cpu-solve"
     CUDA_SOLVE = "cuda-solve"
 
 
 _ROUTES: dict[bytes, tuple[bytes, Route]] = {
     b"/healthz": (b"GET", Route.HEALTH),
-    b"/v1/solve": (b"POST", Route.CPU_SOLVE),
+    b"/v1/solve": (b"POST", Route.AUTO_SOLVE),
     b"/v1/solve-cuda": (b"POST", Route.CUDA_SOLVE),
 }
 

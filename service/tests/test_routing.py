@@ -40,7 +40,7 @@ def test_health_route_rejects_nonempty_entity_as_empty_400() -> None:
 @pytest.mark.parametrize(
     ("target", "expected"),
     [
-        (b"/v1/solve", "CPU_SOLVE"),
+        (b"/v1/solve", "AUTO_SOLVE"),
         (b"/v1/solve-cuda", "CUDA_SOLVE"),
     ],
 )
