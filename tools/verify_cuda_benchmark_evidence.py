@@ -30,9 +30,9 @@ IMMUTABLE_QUALIFICATION_SHA256 = {
     "tools/verify_cuda_release_qualification.py": "e5357cac5e56d0f7d464ee4229704e9d8d0ab37d3cb293492292acb432c4ec86",
     "tools/verify_cuda_statistical_release_qualification.py": "b344a3611fc75c00a58dc3cbb03da2c827a8c27f4ce0ab181ada489281d5dc02",
     "validation/holdem/v1/cuda_release_qualification.json": "e4318172e75397ce845b690105ffa32514d33428bf5d8ac8dd796607b660fba9",
-    "validation/holdem/v1/manifests/cuda_release_qualification.sha256": "d1237f981afdb2094ee94bb0d75474a38774e55eb974f5a7f0ce1a14c11a043a",
+    "validation/holdem/v1/manifests/cuda_release_qualification.sha256": "16ba40a56c45f729d4cfabf1321928d5f2c37ac7e6c4f5f51df59e850cbdf6f1",
     "validation/holdem/v1/cuda_statistical_release_qualification.json": "e50cdda0917306e3f82a8a0af4461bcfe4520278597b38750be232d7f362d641",
-    "validation/holdem/v1/manifests/cuda_statistical_release_qualification.sha256": "464c67094ef72aab0c6da041b4ac3221fab6d8588e118c9d4073923ca87c7147",
+    "validation/holdem/v1/manifests/cuda_statistical_release_qualification.sha256": "fb5a340ffbb6502ae03f416f2fbe537386d0e7fbb6ca5d9a7f18b00cf01442cd",
     "src/poker_knight_ng/_cuda_runtime.py": "50ef776f7f29a7ab4171b78a21901c494a13e14c48cc45e1c71f9427c82d62f9",
 }
 SCHEMA_PATH = Path(__file__).parents[1] / "validation/holdem/v1/cuda_benchmark_private.schema.json"

@@ -35,6 +35,7 @@ CORPUS_NAMES = (
     "exact_holdem_cases.jsonl",
     "tie_and_split_cases.jsonl",
 )
+CORPUS_PREFIX = "validation/holdem/v1/"
 AUTHORITY_NAMES = (
     "tools/generate_oracle_fixtures.py",
     "docs/adr/0001-equity-v1-scope.md",
@@ -50,7 +51,10 @@ AUTHORITY_NAMES = (
     "tools/seven_card_category_counter.c",
     "validation/holdem/v1/seven_card_release_qualification.json",
 )
-MANIFEST_NAMES = CORPUS_NAMES + AUTHORITY_NAMES
+# All manifest paths are repository-root-relative so a plain
+# `sha256sum -c manifests/sha256sums.txt` from the repo root validates
+# the complete manifest from a single working directory.
+MANIFEST_NAMES = tuple(CORPUS_PREFIX + name for name in CORPUS_NAMES) + AUTHORITY_NAMES
 
 RANK_DERIVATION = "transparent-reference+treys-0.1.8"
 DIRECT_DERIVATION = "direct-arithmetic+transparent-reference+treys-0.1.8"
@@ -359,7 +363,7 @@ def manifest(
 ) -> bytes:
     prospective_authority = authority_outputs or {}
     lines = [
-        f"{hashlib.sha256(outputs[name]).hexdigest()}  {name}\n"
+        f"{hashlib.sha256(outputs[name]).hexdigest()}  {CORPUS_PREFIX}{name}\n"
         for name in CORPUS_NAMES
     ]
     lines.extend(
@@ -721,7 +725,7 @@ def verify(root: Path = ROOT) -> None:
         _validate_equity_rows(exact_rows, EXACT_CASES)
         _validate_equity_rows(tie_rows, tie_cases())
         for digest, name in entries:
-            path = corpus / name if name in CORPUS_NAMES else root / name
+            path = root / name
             if hashlib.sha256(path.read_bytes()).hexdigest() != digest:
                 raise QualificationError("manifest hash mismatch")
     except QualificationError:

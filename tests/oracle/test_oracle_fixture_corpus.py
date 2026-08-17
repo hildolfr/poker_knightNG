@@ -21,6 +21,7 @@ ROOT = Path(__file__).parents[2]
 CORPUS = ROOT / "validation" / "holdem" / "v1"
 MANIFEST = CORPUS / "manifests" / "sha256sums.txt"
 CORPUS_NAMES = ("canonical_rank_vectors.jsonl", "exact_holdem_cases.jsonl", "tie_and_split_cases.jsonl")
+CORPUS_PREFIX = "validation/holdem/v1/"
 AUTHORITY_NAMES = (
     "tools/generate_oracle_fixtures.py", "docs/adr/0001-equity-v1-scope.md",
     "docs/adr/0002-card-rank-and-tie-semantics.md", "docs/adr/0003-deterministic-rng-and-deal-order.md",
@@ -30,7 +31,7 @@ AUTHORITY_NAMES = (
  "tools/qualify_seven_card_corpus.py", "tools/seven_card_category_counter.c",
  "validation/holdem/v1/seven_card_release_qualification.json",
  )
-EXPECTED_NAMES = set(CORPUS_NAMES + AUTHORITY_NAMES)
+EXPECTED_NAMES = set(tuple(CORPUS_PREFIX + name for name in CORPUS_NAMES) + AUTHORITY_NAMES)
 CATEGORY_KEYS = set(CATEGORY_NAMES)
 EXACT_KEYS = {"format_version", "contract_version", "derivation", "id", "operation", "hero_cards", "board_cards", "opponent_holes", "expected"}
 EXPECTED_KEYS = {"completed_trials", "unique_wins", "tie_by_other_winners", "losses", "equity_share_units", "hero_category_counts"}
@@ -60,7 +61,7 @@ def test_manifest_has_exact_hash_bound_corpus_and_authority_set():
     assert set(entries) == EXPECTED_NAMES
     for path, digest in entries.items():
         assert len(digest) == 64
-        assert hashlib.sha256((ROOT / path if path in AUTHORITY_NAMES else CORPUS / path).read_bytes()).hexdigest() == digest
+        assert hashlib.sha256((ROOT / path).read_bytes()).hexdigest() == digest
 
 
 def test_rank_rows_are_closed_and_reference_evaluated():
@@ -468,9 +469,9 @@ def test_verify_rejects_signed_missing_or_reordered_rows(tmp_path):
     lambda data: data + data.splitlines()[0] + b"\n",
     lambda data: b"\n".join(data.splitlines()[:-1]) + b"\n",
     lambda data: b"\n".join([data.splitlines()[1], data.splitlines()[0], *data.splitlines()[2:]]) + b"\n",
-    lambda data: data.replace(b"  canonical_rank_vectors.jsonl", b"\tcanonical_rank_vectors.jsonl", 1),
-    lambda data: data.replace(b"  canonical_rank_vectors.jsonl", b" canonical_rank_vectors.jsonl", 1),
-    lambda data: data.replace(b"  canonical_rank_vectors.jsonl", b"   canonical_rank_vectors.jsonl", 1),
+    lambda data: data.replace(b"  validation/holdem/v1/canonical_rank_vectors.jsonl", b"\tvalidation/holdem/v1/canonical_rank_vectors.jsonl", 1),
+    lambda data: data.replace(b"  validation/holdem/v1/canonical_rank_vectors.jsonl", b" validation/holdem/v1/canonical_rank_vectors.jsonl", 1),
+    lambda data: data.replace(b"  validation/holdem/v1/canonical_rank_vectors.jsonl", b"   validation/holdem/v1/canonical_rank_vectors.jsonl", 1),
     lambda data: data.replace(b"canonical_rank_vectors.jsonl", b"../bad", 1),
     lambda data: data.replace(b"canonical_rank_vectors.jsonl", b"/absolute", 1),
     lambda data: data.replace(b"canonical_rank_vectors.jsonl", b"bad\\path", 1),

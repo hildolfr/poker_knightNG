@@ -100,7 +100,7 @@ silently approximated through a v1 interface.
 | Item | Status | Detail |
 |---|---|---|
 | Accepted default branch | **Complete** | `main` at `15e49a5e8d88bcca6395ec07c02aacf388996ac4` |
-| Full maintained test suite | **Complete** | 801 passed and 3 skipped at the promoted checkpoint |
+| Full maintained test suite | **Complete** | 831 passed and 3 skipped at the promoted checkpoint |
 | CUDA qualification | **Complete** | Exact-wheel GPU and sanitizer evidence published |
 | Performance acceptance | **Complete** | 64.742% lower geometric-mean p50 with no p50 or p95 regressions |
 | Wheel and sdist verification | **Complete** | Fresh artifact installation and content checks passed |
