@@ -27,6 +27,10 @@ jobs:
     # promoted or tagged. Repository ruleset/owner approval remains required
     # before a maintainer can dispatch this workflow.
     if: github.ref == 'refs/heads/main'
+    # The repository must configure this environment with required reviewers.
+    # GitHub pauses this job before any tag-push-capable step executes.
+    environment:
+      name: release
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     env:

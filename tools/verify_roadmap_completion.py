@@ -33,14 +33,15 @@ SERVICE_TESTS = (
 def require_deployment_artifacts() -> None:
     """Check the checked-in systemd rollout artifacts without starting a service."""
     service_unit = ROOT / "service/deployment/systemd/poker-knight-ng.service"
-    socket_unit = ROOT / "service/deployment/systemd/poker-knight-ng.socket"
     deployment_readme = ROOT / "service/deployment/README.md"
 
     required = {
         service_unit: ("ExecStart=/usr/bin/env poker-knight-ng-service", "NoNewPrivileges=yes"),
-        socket_unit: ("ListenStream=/run/poker-knight-ng/service.sock", "SocketMode=0660"),
-        deployment_readme: ("not an installation or activation procedure", "Observability and external"),
+        deployment_readme: ("not an installation or activation procedure", "Socket activation is forbidden"),
     }
+    socket_units = list((ROOT / "service/deployment/systemd").glob("*.socket"))
+    if socket_units:
+        raise RuntimeError(f"socket activation units are forbidden: {socket_units}")
     for path, expectations in required.items():
         if not path.is_file():
             raise RuntimeError(f"missing deployment gate artifact: {path.relative_to(ROOT)}")

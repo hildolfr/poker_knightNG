@@ -50,6 +50,7 @@ def test_manual_release_workflows_preserve_approval_and_publication_boundaries()
     assert "workflow_dispatch:" in prerelease
     assert "push:" not in prerelease and "pull_request:" not in prerelease
     assert "contents: write" in prerelease
+    assert "environment:\n      name: release" in prerelease
     assert "github.ref == 'refs/heads/main'" in prerelease
     assert "refusing to reuse or move existing tag" in prerelease
     assert "gh release view \"$TAG\"" in prerelease

@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 import ast
+import subprocess
+import tarfile
 import tomllib
 from pathlib import Path
 
@@ -37,6 +39,31 @@ def test_service_package_owns_exact_h11_without_root_dependency_drift() -> None:
     assert f'hash = "sha256:{WHEEL_SHA256}"' in service_lock
     assert 'name = "poker-knight-ng"' in service_lock
     assert 'source = { editable = "../" }' in service_lock
+
+
+def test_service_sdist_excludes_tests_and_release_docs_require_complete_bundle(tmp_path: Path) -> None:
+    out_dir = tmp_path / "dist"
+    subprocess.run(
+        ["uv", "build", "--project", "service", "--sdist", "--out-dir", str(out_dir)],
+        cwd=ROOT,
+        check=True,
+        text=True,
+        capture_output=True,
+    )
+    sdist, = out_dir.glob("poker_knight_ng_service-*.tar.gz")
+    with tarfile.open(sdist) as archive:
+        names = {member.name.split("/", 1)[-1] for member in archive.getmembers() if "/" in member.name}
+    assert "tests" not in {name.split("/", 1)[0] for name in names}
+    assert "src/poker_knight_ng_service/runtime.py" in names
+    assert "pyproject.toml" in names
+    assert "MANIFEST.in" in names
+
+    release = (ROOT / "docs/release-process.md").read_text("utf-8")
+    workflow = (ROOT / ".github/workflows/ci.yml").read_text("utf-8")
+    assert "deployment-bundle only" in release
+    assert "matching-version engine wheel" in release
+    assert "service wheel (plus the pinned `h11` wheel)" in release
+    assert '"$h11_wheel" "$engine_wheel" "$service_wheel"' in workflow
 
 
 def test_ci_verifies_frozen_service_environment_and_tests() -> None:
