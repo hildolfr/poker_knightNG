@@ -56,6 +56,7 @@ jobs:
         run: |
           set -euo pipefail
           test "$GITHUB_REF" = "refs/heads/main"
+          git fetch --tags --force origin
           test "$GITHUB_SHA" = "$(git rev-parse HEAD)"
           test "$GITHUB_SHA" = "$(git rev-parse origin/main)"
           python - <<'PY'

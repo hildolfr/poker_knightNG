@@ -9,6 +9,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 from collections.abc import Callable
+from dataclasses import dataclass
 
 from .identity import resolve_production_identity
 from .listener import L1Listener, construct_listener_with_callback
@@ -27,6 +28,12 @@ def _coerce_float_seconds(value: object) -> float:
     raise TypeError("graceful_drain_seconds must be numeric")
 
 
+@dataclass
+class _AcceptedSession:
+    peer: AsyncPeer
+    admitted: bool = False
+
+
 class ServiceRuntime:
     """Service lifecycle coordinator with bounded session admission."""
 
@@ -36,11 +43,18 @@ class ServiceRuntime:
         max_sessions: int = DEFAULT_MAX_SESSIONS,
         graceful_drain_seconds: float = _DEFAULT_GRACEFUL_DRAIN_SECONDS,
     ) -> None:
-        if type(max_sessions) is not int or max_sessions <= 0:
-            raise ValueError("max_sessions must be a positive integer")
+        if type(max_sessions) is not int:
+            raise TypeError("max_sessions must be an int")
+        if max_sessions != DEFAULT_MAX_SESSIONS:
+            raise ValueError(f"max_sessions is fixed at {DEFAULT_MAX_SESSIONS}")
+
         graceful_seconds = _coerce_float_seconds(graceful_drain_seconds)
         if not (graceful_seconds >= 0):
             raise ValueError("graceful_drain_seconds must be non-negative")
+        if graceful_seconds != _DEFAULT_GRACEFUL_DRAIN_SECONDS:
+            raise ValueError(
+                f"graceful_drain_seconds is fixed at {_DEFAULT_GRACEFUL_DRAIN_SECONDS}"
+            )
 
         self._max_sessions = max_sessions
         self._graceful_drain_seconds = graceful_seconds
@@ -48,7 +62,7 @@ class ServiceRuntime:
         # Fixed-cardinality, RAM-only aggregate: no peer, request, path, or
         # exception data is retained for diagnostics.
         self._rejected_sessions = 0
-        self._session_tasks: set[asyncio.Task[None]] = set()
+        self._session_tasks: dict[asyncio.Task[None], _AcceptedSession] = {}
         self._listener: L1Listener | None = None
         self._stopping = False
 
@@ -58,14 +72,27 @@ class ServiceRuntime:
             return
 
         task = asyncio.current_task()
+        peer = AsyncPeer(reader, writer)
+        state = _AcceptedSession(peer=peer)
         if task is not None:
-            self._session_tasks.add(task)
+            self._session_tasks[task] = state
+
+        def mark_admitted() -> None:
+            state.admitted = True
+
         try:
-            await handle_one_session(AsyncPeer(reader, writer))
+            await handle_one_session(peer, mark_admitted)
         finally:
             self._release_session()
             if task is not None:
-                self._session_tasks.discard(task)
+                self._session_tasks.pop(task, None)
+            # Guarantee the close -> wait_closed lifecycle even when the
+            # handler exits early (cancellation or a raised error before it
+            # closed the peer): wait_closed() on an unclosed writer blocks
+            # forever. AsyncPeer.close() is idempotent, so the normal session
+            # path that already closed the peer is unaffected.
+            peer.close()
+            await peer.wait_closed()
 
     def _admit_session(self) -> bool:
         if self._stopping:
@@ -80,6 +107,17 @@ class ServiceRuntime:
     def _release_session(self) -> None:
         if self._active_sessions > 0:
             self._active_sessions -= 1
+
+    def _close_non_admitted(self) -> None:
+        for state in self._session_tasks.values():
+            if not state.admitted:
+                state.peer.close()
+
+    def _has_non_admitted_tasks(self) -> bool:
+        return any(not state.admitted for state in self._session_tasks.values())
+
+    def _has_admitted_tasks(self) -> bool:
+        return any(state.admitted for state in self._session_tasks.values())
 
     @property
     def active_sessions(self) -> int:
@@ -112,8 +150,12 @@ class ServiceRuntime:
 
         identity = resolve_production_identity()
         self._listener = await construct_listener_with_callback(identity, self._on_connection)
-        await shutdown.wait()
-        await self.stop()
+        try:
+            await shutdown.wait()
+        finally:
+            # Cancellation is a process-control path too: retain neither a
+            # live listener nor a false-ready diagnostics state.
+            await self.stop()
 
     async def stop(self) -> None:
         """Stop accepting new sessions and wait for admitted work to finish."""
@@ -125,11 +167,18 @@ class ServiceRuntime:
         if self._listener is not None:
             await self._listener.close()
 
+        self._close_non_admitted()
+
+        # Bounded phase: idle/pre-admission sessions must wind down within
+        # the configured graceful-drain window (they were explicitly closed
+        # above), so graceful_drain_seconds is an effective upper bound.
         deadline = asyncio.get_running_loop().time() + self._graceful_drain_seconds
-        while self._session_tasks and asyncio.get_running_loop().time() < deadline:
+        while self._has_non_admitted_tasks() and asyncio.get_running_loop().time() < deadline:
             await asyncio.sleep(0.050)
 
-        while self._session_tasks:
+        # ADR 0005 section 6: an admitted solve drains without a deadline.
+        # Only admitted sessions may hold shutdown open past the bound.
+        while self._has_admitted_tasks():
             await asyncio.sleep(0.050)
 
     @property

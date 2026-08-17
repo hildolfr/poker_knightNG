@@ -197,6 +197,7 @@ def test_phase7b_source_has_exact_engine_authority_and_no_listener() -> None:
             "import argparse",
             "import asyncio",
             "from collections.abc import Callable",
+            "from dataclasses import dataclass",
             "from .identity import resolve_production_identity",
             "from .listener import L1Listener, construct_listener_with_callback",
             "from .session import handle_one_session",

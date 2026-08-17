@@ -6,5 +6,7 @@ RefuseManualStart=yes
 [Socket]
 ListenStream=/run/poker-knight-ng/service.sock
 SocketMode=0660
+SocketUser=poker-knight-ng
+SocketGroup=poker-knight-ng
 DirectoryMode=0750
 Service=poker-knight-ng.service

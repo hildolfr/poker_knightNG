@@ -35,6 +35,10 @@ class AsyncSession(AsyncReader, Protocol):
         """Close the session without waiting."""
         ...
 
+    async def wait_closed(self) -> bool | None:
+        """Await graceful peer close and report peer-loss if applicable."""
+        ...
+
 
 def _build_session_claim_api():
     lock = Lock()
@@ -128,13 +132,15 @@ async def _solve_response(admitted: AdmittedRequest) -> bytes:
         return _internal_response(request_id)
 
 
-async def handle_one_session(session: AsyncSession) -> None:
+async def handle_one_session(session: AsyncSession, on_admission: Callable[[], None] | None = None) -> None:
     """Handle exactly one request without owning a socket or listener."""
 
     _claim_session(session)
     try:
         try:
             admitted = await read_admitted_request(session)
+            if on_admission is not None:
+                on_admission()
             route = select_route(admitted)
             if route is Route.HEALTH:
                 response = serialize_health_response()

@@ -23,6 +23,15 @@ _PROBE_TIMEOUT_SECONDS = 0.250
 
 
 def _inherited_listener_fd() -> int | None:
+    """Return the systemd inherited-listener marker when activation state is present.
+
+    Fail closed: a ``LISTEN_PID`` that resolves to this process is activation
+    state and is forbidden regardless of the ``LISTEN_FDS`` value (0, 2,
+    malformed, or 1).  The canonical deployment never inherits listeners, so
+    any matching activation state must be rejected before bind.  The returned
+    integer is only a presence marker; callers must not close or adopt the
+    descriptor it nominally refers to.
+    """
     pid = os.environ.get("LISTEN_PID")
     if not pid:
         return None
@@ -30,12 +39,6 @@ def _inherited_listener_fd() -> int | None:
         if int(pid) != os.getpid():
             return None
     except ValueError:
-        return None
-    try:
-        count = int(os.environ.get("LISTEN_FDS", "0"))
-    except ValueError:
-        return None
-    if count != 1:
         return None
     return 3
 
@@ -380,46 +383,17 @@ async def _construct_l1_listener(
         )
         syscalls.flock(lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
 
-        existing = syscalls.inspect_target(_SOCKET_BASENAME, parent_fd)
         inherited = _inherited_listener_fd()
         if inherited is not None:
             syscalls.boundary("systemd-inherited-listener")
-            inherited_socket = socket.socket(fileno=inherited)
-            try:
-                _require(
-                    inherited_socket.getsockname() == _SOCKET_PATH,
-                    "inherited listener path mismatch",
-                )
-                created_snapshot = _Snapshot.from_stat(os.fstat(inherited))
-                _require(
-                    existing is None
-                    or (
-                        _same_object(existing, created_snapshot)
-                        and stat.S_ISSOCK(created_snapshot.mode)
-                    ),
-                    "inherited socket target changed",
-                )
-                server = await syscalls.start_server_from_socket(
-                    callback,
-                    inherited_socket,
-                    False,
-                )
-                current = syscalls.inspect_target(_SOCKET_BASENAME, parent_fd)
-                _require_same_socket(current, created_snapshot, uid, gid, exact_mode=_SOCKET_MODE)
-                syscalls.boundary("systemd-inherited-start-serving")
-                await server.start_serving()
-                return L1Listener(
-                    server,
-                    syscalls,
-                    parent_fd,
-                    lock_fd,
-                    created_snapshot,
-                    False,
-                )
-            except BaseException:
-                inherited_socket.close()
-                raise
+            # Canonical service deployment forbids inheriting sockets from
+            # systemd.  Rejection needs no descriptor ownership transfer:
+            # never close FD 3 (or any fd) merely because the environment
+            # claims activation — the descriptor may be an unrelated,
+            # still-live process fd (forged activation state).
+            raise ListenerConstructionError("systemd inherited listeners are forbidden")
 
+        existing = syscalls.inspect_target(_SOCKET_BASENAME, parent_fd)
         if existing is not None:
             _require(
                 _is_exact(existing, stat.S_ISSOCK, uid, gid, _SOCKET_MODE),

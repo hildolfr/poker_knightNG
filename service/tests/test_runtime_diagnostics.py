@@ -9,13 +9,13 @@ from poker_knight_ng_service.routing import select_route
 
 
 def test_runtime_diagnostics_are_fixed_schema_and_not_ready_before_listener() -> None:
-    service = runtime.ServiceRuntime(max_sessions=2)
+    service = runtime.ServiceRuntime()
 
     assert service.diagnostics_snapshot() == {
         "schema_version": "poker-knight-ng-runtime-diagnostics-v1",
         "readiness": "not-ready",
         "active_sessions": 0,
-        "max_sessions": 2,
+        "max_sessions": 16,
         "rejected_sessions": 0,
     }
 
@@ -30,17 +30,18 @@ def test_runtime_diagnostics_are_ready_only_after_listener_construction() -> Non
 
 
 def test_runtime_diagnostics_track_only_bounded_aggregate_admission_outcomes() -> None:
-    service = runtime.ServiceRuntime(max_sessions=1)
+    service = runtime.ServiceRuntime()
 
-    assert service._admit_session()
+    for _ in range(16):
+        assert service._admit_session()
     assert not service._admit_session()
     service._release_session()
 
     assert service.diagnostics_snapshot() == {
         "schema_version": "poker-knight-ng-runtime-diagnostics-v1",
         "readiness": "not-ready",
-        "active_sessions": 0,
-        "max_sessions": 1,
+        "active_sessions": 15,
+        "max_sessions": 16,
         "rejected_sessions": 1,
     }
 

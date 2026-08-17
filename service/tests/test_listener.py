@@ -554,6 +554,54 @@ def test_cleanup_base_exception_from_close_fd_propagates_and_runs_all_fds(monkey
     assert fake.closed_fds == [fake.lock_fd, fake.parent_fd]
 
 
+def test_real_probe_timeout_branches_nonblocking_safely(tmp_path) -> None:
+    from poker_knight_ng_service import listener
+
+    timed_out = {"seen": False}
+
+    async def fake_wait_for(awaitable, timeout):
+        timed_out["seen"] = True
+        # The probe constructs a real sock_connect coroutine before calling
+        # wait_for; a synthetic timeout must still close that awaitable so the
+        # test does not leak an unawaited coroutine warning.
+        close = getattr(awaitable, "close", None)
+        if close is not None:
+            close()
+        raise asyncio.TimeoutError
+
+    with pytest.MonkeyPatch.context() as monkeypatch:
+        monkeypatch.setattr(listener.asyncio, "wait_for", fake_wait_for)
+        result = asyncio.run(listener._RealSyscalls().probe(str(tmp_path / "probe.sock"), 0.250))
+
+    assert timed_out["seen"]
+    assert result is None
+
+
+def test_construct_rejects_inherited_listener(monkeypatch) -> None:
+    from poker_knight_ng_service import listener
+
+    fake = _ClosedSyscalls()
+    monkeypatch.setenv("LISTEN_PID", str(os.getpid()))
+    monkeypatch.setenv("LISTEN_FDS", "1")
+
+    with pytest.raises(listener.ListenerConstructionError):
+        _run(listener._construct_l1_listener(_resolved(monkeypatch), fake))
+
+    assert fake.trace == [
+        "open-parent",
+        "fstat-parent",
+        "open-lock",
+        "fstat-lock",
+        "flock",
+        "boundary:systemd-inherited-listener",
+        "close-fd:11",
+        "close-fd:10",
+    ]
+    # Cleanup closes only the constructor's own parent/lock fds; the
+    # inherited-listener marker fd (3) is never adopted or closed.
+    assert fake.closed_fds == [11, 10]
+
+
 def test_inherited_listener_fd_respects_matching_pid_and_fds(monkeypatch) -> None:
     from poker_knight_ng_service import listener
 
@@ -573,13 +621,16 @@ def test_inherited_listener_fd_ignores_bad_pid(monkeypatch) -> None:
 
 
 @pytest.mark.parametrize("count", ("0", "2", "not-a-count"))
-def test_inherited_listener_fd_requires_exactly_one_socket(monkeypatch, count: str) -> None:
+def test_inherited_listener_fd_fails_closed_on_any_matching_activation_state(
+    monkeypatch, count: str
+) -> None:
+    """A matching LISTEN_PID is forbidden regardless of the LISTEN_FDS value."""
     from poker_knight_ng_service import listener
 
     monkeypatch.setenv("LISTEN_PID", str(os.getpid()))
     monkeypatch.setenv("LISTEN_FDS", count)
 
-    assert listener._inherited_listener_fd() is None
+    assert listener._inherited_listener_fd() == 3
 
 
 def test_cleanup_mixed_failures_prefers_base_exception_over_ordinary(monkeypatch) -> None:

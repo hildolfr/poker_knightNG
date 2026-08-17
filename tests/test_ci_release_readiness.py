@@ -118,3 +118,14 @@ def test_main_branch_protection_evidence_is_canonical_closed_and_manifest_bound(
     digest = hashlib.sha256(raw).hexdigest()
     assert PROTECTION_MANIFEST.read_text("ascii") == f"{digest}  {PROTECTION.name}\n"
     assert re.fullmatch(r"[0-9a-f]{64}", value["private_response_sha256"])
+
+
+def test_prerelease_workflow_fetches_remote_refs_before_main_ref_check() -> None:
+    text = PRERELEASE_WORKFLOW.read_text("utf-8")
+    marker = 'test "$GITHUB_REF" = "refs/heads/main"\n'
+    start = text.index(marker)
+    block = text[start:start + 400]
+    fetch_pos = block.index('git fetch --tags --force origin')
+    main_compare_pos = block.index('test "$GITHUB_SHA" = "$(git rev-parse origin/main)"')
+    assert fetch_pos < main_compare_pos
+    assert 'git fetch --tags --force origin' in block
