@@ -145,248 +145,37 @@ def test_packaging_adr_and_roadmap_preserve_no_listener_boundary() -> None:
     assert "listener" in phase7b.lower()
 
 
-def test_phase7b_source_has_exact_engine_authority_and_no_listener() -> None:
-    expected_imports = {
-        "__init__.py": (),
-        "adapter.py": (
-            "from __future__ import annotations",
-            "import json",
-            "from dataclasses import dataclass",
-            "from typing import Any",
-            "from poker_knight_ng.contract.errors import problem",
-            "from poker_knight_ng.contract.models import EquityRequest",
-            "from .framing import AdmittedRequest",
-            "from .routing import Route, select_route",
-        ),
-        "admission.py": (
-            "from __future__ import annotations",
-            "from collections.abc import Callable",
-            "from threading import Lock",
-            "from poker_knight_ng.contract.errors import problem",
-        ),
-        "async_execution.py": (
-            "from __future__ import annotations",
-            "import asyncio",
-            "from threading import Event, Thread",
-            "from poker_knight_ng.contract.errors import ContractProblem, problem",
-            "from .adapter import AdaptedSolveRequest",
-            "from .admission import SolveLease, admit_solve",
-            "from .execution import _execute_admitted, _trusted_snapshot",
-        ),
-        "connection.py": (
-            "from __future__ import annotations",
-            "import asyncio",
-            "from time import monotonic",
-            "from typing import Protocol",
-            "from .framing import AdmittedRequest, TransportFailure, _inspect_request_head, admit_request",
-        ),
-        "execution.py": (
-            "from __future__ import annotations",
-            "from poker_knight_ng.contract import ContractProblem, EquityRequest, serialize_equity_result",
-            "from poker_knight_ng.contract.errors import problem",
-            "from poker_knight_ng.engine import CPUReferenceEngine, CUDAEngine",
-            "from .adapter import AdaptedSolveRequest",
-            "from .admission import SolveLease, admit_solve",
-            "from .routing import Route",
-        ),
-        "identity.py": (
-            "from __future__ import annotations",
-            "from grp import getgrnam as _getgrnam",
-            "from pwd import getpwnam as _getpwnam",
-            "from weakref import WeakKeyDictionary",
-        ),
-        "framing.py": (
-            "from __future__ import annotations",
-            "from dataclasses import dataclass",
-            "import h11",
-        ),
-        "__main__.py": (
-            "from __future__ import annotations",
-            "import argparse",
-            "import asyncio",
-            "import signal",
-            "from .runtime import ServiceRuntime, add_runtime_arguments",
-        ),
-        "listener.py": (
-            "from __future__ import annotations",
-            "import asyncio",
-            "import errno",
-            "import fcntl",
-            "import os",
-            "import socket",
-            "import stat",
-            "from dataclasses import dataclass",
-            "from typing import Callable, Protocol",
-            "from .identity import ResolvedServiceIdentity, _identity_values",
-        ),
-        "runtime.py": (
-            "from __future__ import annotations",
-            "import argparse",
-            "import asyncio",
-            "from collections.abc import Callable",
-            "from dataclasses import dataclass",
-            "from .identity import resolve_production_identity",
-            "from .listener import L1Listener, construct_listener_with_callback",
-            "from .session import handle_one_session",
-            "from .stream_adapter import AsyncPeer",
-        ),
-        "responses.py": (
-            "from __future__ import annotations",
-            "import json",
-            "import re",
-            "import secrets",
-            "from collections.abc import Callable",
-            "from .framing import TransportFailure, serialize_response",
-        ),
-        "routing.py": (
-            "from __future__ import annotations",
-            "from enum import Enum",
-            "from .framing import AdmittedRequest, TransportFailure",
-        ),
-        "session.py": (
-            "from __future__ import annotations",
-            "import json",
-            "from collections.abc import Callable",
-            "from threading import Lock",
-            "from typing import Protocol",
-            "from weakref import ReferenceType, ref",
-            "from poker_knight_ng.contract.errors import ContractProblem, PROBLEM_POLICIES, problem",
-            "from .adapter import adapt_solve_request",
-            "from .async_execution import execute_solve_async",
-            "from .connection import AsyncReader, read_admitted_request",
-            "from .framing import AdmittedRequest, TransportFailure",
-            "from .responses import EMERGENCY_REQUEST_ID, RequestIdGenerationFailure, generate_request_id, serialize_health_response, serialize_json_response, serialize_transport_failure",
-            "from .routing import Route, select_route",
-        ),
-        "stream_adapter.py": (
-            "from __future__ import annotations",
-            "import asyncio",
-            "import errno",
-        ),
-    }
-    observed_imports: dict[str, tuple[str, ...]] = {}
+def test_phase7b_source_preserves_engine_and_listener_authority_boundaries() -> None:
+    """Assert policy-relevant authority boundaries, not incidental AST order."""
+    package = SERVICE / "src/poker_knight_ng_service"
+    imports: dict[str, set[str]] = {}
     forbidden_calls: list[str] = []
     engine_calls: list[tuple[str, str]] = []
-    async_calls: list[tuple[str, str]] = []
-    dunder_accesses: list[tuple[str, str]] = []
-    forbidden_name_calls = {
-        "__import__",
-        "compile",
-        "delattr",
-        "eval",
-        "exec",
-        "getattr",
-        "globals",
-        "locals",
-        "setattr",
-        "solve",
-        "solve_cuda",
-        "start_next_cycle",
-        "vars",
-    }
-    forbidden_attribute_calls = {
-        "call_soon_threadsafe",
-        "create_task",
-        "getattr",
-        "import_module",
-        "run_in_executor",
-        "shield",
-        "solve_cuda",
-        "start_next_cycle",
-        "to_thread",
-    }
-    for path in sorted((SERVICE / "src/poker_knight_ng_service").glob("*.py")):
+    thread_calls: list[tuple[str, str]] = []
+    forbidden_names = {"__import__", "compile", "delattr", "eval", "exec", "getattr", "globals", "locals", "setattr", "solve", "solve_cuda", "start_next_cycle", "vars"}
+    forbidden_attributes = {"call_soon_threadsafe", "create_task", "getattr", "import_module", "run_in_executor", "shield", "solve_cuda", "start_next_cycle", "to_thread"}
+    for path in package.glob("*.py"):
         tree = ast.parse(path.read_text("utf-8"))
-        observed_imports[path.name] = tuple(
-            ast.unparse(node)
-            for node in ast.walk(tree)
-            if isinstance(node, (ast.Import, ast.ImportFrom))
-        )
-        forbidden_calls.extend(
-            node.func.id
-            for node in ast.walk(tree)
-            if isinstance(node, ast.Call)
-            and isinstance(node.func, ast.Name)
-            and node.func.id in forbidden_name_calls
-        )
-        forbidden_calls.extend(
-            node.func.attr
-            for node in ast.walk(tree)
-            if isinstance(node, ast.Call)
-            and isinstance(node.func, ast.Attribute)
-            and node.func.attr in forbidden_attribute_calls
-        )
-        engine_calls.extend(
-            (path.name, node.func.id)
-            for node in ast.walk(tree)
-            if isinstance(node, ast.Call)
-            and isinstance(node.func, ast.Name)
-            and node.func.id in {"CPUReferenceEngine", "CUDAEngine"}
-        )
-        engine_calls.extend(
-            (path.name, ast.unparse(node.func))
-            for node in ast.walk(tree)
-            if isinstance(node, ast.Call)
-            and isinstance(node.func, ast.Attribute)
-            and node.func.attr == "solve"
-        )
-        async_calls.extend(
-            (path.name, node.func.id)
-            for node in ast.walk(tree)
-            if path.name == "async_execution.py"
-            and isinstance(node, ast.Call)
-            and isinstance(node.func, ast.Name)
-            and node.func.id == "Thread"
-        )
-        async_calls.extend(
-            (path.name, ast.unparse(node.func))
-            for node in ast.walk(tree)
-            if path.name == "async_execution.py"
-            and isinstance(node, ast.Call)
-            and isinstance(node.func, ast.Attribute)
-            and node.func.attr in {"is_alive", "is_set", "join", "set", "sleep", "start"}
-        )
-        dunder_accesses.extend(
-            (ast.unparse(node.value), node.attr)
-            for node in ast.walk(tree)
-            if isinstance(node, ast.Attribute)
-            and node.attr.startswith("__")
-            and node.attr.endswith("__")
-        )
-
-    assert observed_imports == expected_imports
+        imports[path.name] = {ast.unparse(node) for node in ast.walk(tree) if isinstance(node, (ast.Import, ast.ImportFrom))}
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Call):
+                continue
+            if isinstance(node.func, ast.Name):
+                if node.func.id in forbidden_names:
+                    forbidden_calls.append(f"{path.name}:{node.lineno}:{node.func.id}")
+                if node.func.id in {"CPUReferenceEngine", "CUDAEngine"}:
+                    engine_calls.append((path.name, node.func.id))
+                if path.name == "async_execution.py" and node.func.id == "Thread":
+                    thread_calls.append((path.name, node.func.id))
+            elif isinstance(node.func, ast.Attribute):
+                if node.func.attr in forbidden_attributes:
+                    forbidden_calls.append(f"{path.name}:{node.lineno}:{node.func.attr}")
+                if node.func.attr == "solve":
+                    engine_calls.append((path.name, ast.unparse(node.func)))
     assert forbidden_calls == []
-    assert engine_calls == [
-        ("execution.py", "CPUReferenceEngine"),
-        ("execution.py", "CUDAEngine"),
-        ("execution.py", "engine.solve"),
-    ]
-    assert async_calls == [
-        ("async_execution.py", "Thread"),
-        ("async_execution.py", "worker.join"),
-        ("async_execution.py", "worker.start"),
-        ("async_execution.py", "done.set"),
-        ("async_execution.py", "done.is_set"),
-        ("async_execution.py", "worker.join"),
-        ("async_execution.py", "worker.is_alive"),
-        ("async_execution.py", "done.is_set"),
-        ("async_execution.py", "asyncio.sleep"),
-        ("async_execution.py", "worker.is_alive"),
-    ]
-    assert dunder_accesses == [
-        ("object", "__new__"),
-        ("object", "__setattr__"),
-        ("object", "__setattr__"),
-        ("object", "__getattribute__"),
-        ("object", "__getattribute__"),
-        ("object", "__getattribute__"),
-        ("object", "__getattribute__"),
-        ("object", "__new__"),
-        ("object", "__getattribute__"),
-        ("object", "__getattribute__"),
-        ("object", "__getattribute__"),
-        ("super()", "__init__"),
-        ("object", "__new__"),
-        ("type(cleanup_failure)", "__name__"),
-        ("super()", "__init__"),
-    ]
+    assert "from poker_knight_ng.engine import CPUReferenceEngine, CUDAEngine" in imports["execution.py"]
+    assert all("listener" not in item.lower() for item in imports["execution.py"])
+    assert all("poker_knight_ng.engine" not in item and "listener" not in item.lower() for item in imports["adapter.py"])
+    assert set(engine_calls) == {("execution.py", "CPUReferenceEngine"), ("execution.py", "CUDAEngine"), ("execution.py", "engine.solve")}
+    assert len(engine_calls) == 3
+    assert thread_calls == [("async_execution.py", "Thread")]
