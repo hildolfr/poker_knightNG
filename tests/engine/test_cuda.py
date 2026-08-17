@@ -1,5 +1,6 @@
 """Explicit CUDA engine integration without CUDA execution."""
 import hashlib
+import importlib
 import subprocess
 import sys
 from types import SimpleNamespace
@@ -50,6 +51,18 @@ def test_cuda_engine_maps_typed_runtime_errors():
     for exc, code in ((CudaBackendUnavailable(), "BACKEND_UNAVAILABLE"), (CudaResourceExhausted(), "RESOURCE_EXHAUSTED"), (CudaRngExhausted(), "RNG_REJECTION_EXHAUSTED"), (ValueError(), "INTERNAL_ERROR")):
         with pytest.raises(ContractProblem, match=code):
             CUDAEngine(runtime=Runtime(error=exc), clock_ns=iter((1, 2)).__next__).solve(request())
+
+
+def test_cuda_engine_maps_pre_reload_runtime_error_to_stable_public_code():
+    runtime_module = importlib.import_module("poker_knight_ng._cuda_runtime")
+    engine_module = importlib.reload(importlib.import_module("poker_knight_ng.engine.cuda"))
+    stale_error = runtime_module.CudaBackendUnavailable("before reload")
+    importlib.reload(runtime_module)
+    try:
+        with pytest.raises(ContractProblem, match="BACKEND_UNAVAILABLE"):
+            engine_module.CUDAEngine(runtime=Runtime(error=stale_error), clock_ns=iter((1, 2)).__next__).solve(request())
+    finally:
+        importlib.reload(engine_module)
 
 
 def test_cuda_engine_rejects_cpu_request():

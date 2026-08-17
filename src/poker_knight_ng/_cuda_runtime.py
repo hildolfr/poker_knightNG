@@ -5,13 +5,15 @@ CuPy nor touches a CUDA driver; construction validates only host configuration.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass
+from concurrent.futures import Future
+from dataclasses import dataclass, field
 import hashlib
 from importlib.resources import files
 import operator
 from pathlib import Path
 import re
 import struct
+import threading
 from typing import Any, Final, cast
 
 from .reference.monte_carlo import MonteCarloResult
@@ -36,6 +38,8 @@ AGGREGATE_DTYPE: Final = [
 _INCLUDE = re.compile(r'^\s*#include\s+"([^"/]+)"\s*$', re.MULTILINE)
 _SYSTEM_INCLUDE = re.compile(r'^\s*#include\s+<([^>]+)>\s*$', re.MULTILINE)
 _MODULE_CACHE: dict[tuple[str, str, tuple[str, ...]], Any] = {}
+_MODULE_CACHE_LOCK = threading.RLock()
+_MODULE_COMPILATIONS: dict[tuple[str, str, tuple[str, ...]], Future[Any]] = {}
 APPROVED_SOURCE_NAMES: Final = (
     "philox.cuh",
     "dealer.cuh",
@@ -367,6 +371,7 @@ class CupyDeterministicRuntime:
     _module: Any = None
     _source_digest: str | None = None
     _abi_verified: bool = False
+    _initialization_lock: Any = field(default_factory=threading.RLock, init=False, repr=False)
 
     def __post_init__(self) -> None:
         if type(self.batch_blocks) is not int or self.batch_blocks < 1:
@@ -390,10 +395,22 @@ class CupyDeterministicRuntime:
         source, source_digest = _nvrtc_source_snapshot_with_digest()
         architecture, options = _compiler_environment(cp)
         cache_key = (source_digest, architecture, options)
-        cached = _MODULE_CACHE.get(cache_key)
-        if cached is not None:
-            self._source_digest = cache_key[0]
-            return cached
+        with _MODULE_CACHE_LOCK:
+            cached = _MODULE_CACHE.get(cache_key)
+            if cached is not None:
+                self._source_digest = source_digest
+                return cached
+            compilation = _MODULE_COMPILATIONS.get(cache_key)
+            owner = compilation is None
+            if owner:
+                compilation = Future()
+                _MODULE_COMPILATIONS[cache_key] = compilation
+        assert compilation is not None
+        if not owner:
+            module = compilation.result()
+            self._source_digest = source_digest
+            return module
+
         # The digest changes the submitted source bytes as well as our cache key,
         # preventing CuPy's own source cache from reusing stale included headers.
         names = (
@@ -405,9 +422,22 @@ class CupyDeterministicRuntime:
             module = cp.RawModule(code=source, options=cache_key[2], backend="nvrtc")
             for name in names:
                 module.get_function(name)
-        except Exception as exc:
-            raise CudaBackendUnavailable("failed to compile source-attested deterministic CUDA source") from exc
-        _MODULE_CACHE[cache_key] = module
+        except BaseException as exc:
+            failure: BaseException
+            if isinstance(exc, Exception):
+                failure = CudaBackendUnavailable("failed to compile source-attested deterministic CUDA source")
+            else:
+                failure = exc
+            with _MODULE_CACHE_LOCK:
+                compilation.set_exception(failure)
+                del _MODULE_COMPILATIONS[cache_key]
+            if failure is exc:
+                raise
+            raise failure from exc
+        with _MODULE_CACHE_LOCK:
+            _MODULE_CACHE[cache_key] = module
+            compilation.set_result(module)
+            del _MODULE_COMPILATIONS[cache_key]
         self._source_digest = source_digest
         return module
 
@@ -427,11 +457,15 @@ class CupyDeterministicRuntime:
         self._abi_verified = True
 
     def _kernels(self) -> tuple[Any, Any]:
-        if self._module is None:
-            self._module = self._compile()
-        if not self._abi_verified:
-            self._probe_abi()
-        return (self._module.get_function("pkng_simulate_block_partials_kernel"), self._module.get_function("pkng_reduce_block_partials_kernel"))
+        with self._initialization_lock:
+            if self._module is None:
+                self._module = self._compile()
+            if not self._abi_verified:
+                self._probe_abi()
+            return (
+                self._module.get_function("pkng_simulate_block_partials_kernel"),
+                self._module.get_function("pkng_reduce_block_partials_kernel"),
+            )
 
     def _batch_capacity(self) -> int:
         free, _total = self._cupy().cuda.runtime.memGetInfo()

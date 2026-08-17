@@ -1,10 +1,12 @@
 """Contract checks for the private, lazy CuPy CUDA runtime adapter."""
 from __future__ import annotations
 
+from concurrent.futures import Future
 import hashlib
 import importlib
 import struct
 import sys
+import threading
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
@@ -127,6 +129,156 @@ def test_nvrtc_source_is_freestanding_and_uses_direct_c_kernel_lookup() -> None:
         "pkng_reduce_block_partials_kernel",
         "pkng_aggregate_abi_probe",
     ]
+
+
+def test_compile_is_single_flight_per_compiler_cache_key(monkeypatch: pytest.MonkeyPatch) -> None:
+    runtime = importlib.import_module("poker_knight_ng._cuda_runtime")
+    runtime._MODULE_CACHE.clear()
+    entered_compile = threading.Event()
+    second_compile = threading.Event()
+    release_compile = threading.Event()
+    calls: list[object] = []
+
+    class Module:
+        def get_function(self, _name: str) -> object:
+            return object()
+
+    def raw_module(**_kwargs: object) -> Module:
+        calls.append(object())
+        if len(calls) == 1:
+            entered_compile.set()
+        else:
+            second_compile.set()
+        assert release_compile.wait(2)
+        return Module()
+
+    cp = SimpleNamespace(
+        __version__="14.1.1",
+        cuda=SimpleNamespace(Device=lambda: SimpleNamespace(compute_capability="120")),
+        RawModule=raw_module,
+    )
+    errors: list[BaseException] = []
+
+    def compile_runtime() -> None:
+        try:
+            runtime.CupyDeterministicRuntime(_cp=cp)._compile()
+        except BaseException as exc:
+            errors.append(exc)
+
+    first = threading.Thread(target=compile_runtime)
+    second = threading.Thread(target=compile_runtime)
+    first.start()
+    assert entered_compile.wait(2)
+    second.start()
+    try:
+        assert not second_compile.wait(0.2)
+    finally:
+        release_compile.set()
+    first.join(2)
+    second.join(2)
+    assert not first.is_alive() and not second.is_alive()
+    assert errors == []
+    assert len(calls) == 1
+
+
+def test_compile_waiters_receive_the_owner_failure(monkeypatch: pytest.MonkeyPatch) -> None:
+    runtime = importlib.import_module("poker_knight_ng._cuda_runtime")
+    runtime._MODULE_CACHE.clear()
+    entered_compile = threading.Event()
+    release_compile = threading.Event()
+    waiter_observed = threading.Event()
+
+    class ObservedFuture(Future[object]):
+        def result(self, timeout: float | None = None) -> object:
+            waiter_observed.set()
+            return super().result(timeout)
+
+    monkeypatch.setattr(runtime, "Future", ObservedFuture)
+
+    def raw_module(**_kwargs: object) -> object:
+        entered_compile.set()
+        assert release_compile.wait(2)
+        raise RuntimeError("nvrtc failed")
+
+    cp = SimpleNamespace(
+        __version__="14.1.1",
+        cuda=SimpleNamespace(Device=lambda: SimpleNamespace(compute_capability="120")),
+        RawModule=raw_module,
+    )
+    errors: list[BaseException] = []
+
+    def compile_runtime() -> None:
+        try:
+            runtime.CupyDeterministicRuntime(_cp=cp)._compile()
+        except BaseException as exc:
+            errors.append(exc)
+
+    first = threading.Thread(target=compile_runtime)
+    second = threading.Thread(target=compile_runtime)
+    first.start()
+    assert entered_compile.wait(2)
+    second.start()
+    assert waiter_observed.wait(2)
+    release_compile.set()
+    first.join(2)
+    second.join(2)
+    assert not first.is_alive() and not second.is_alive()
+    assert len(errors) == 2
+    assert all(isinstance(error, runtime.CudaBackendUnavailable) for error in errors)
+    assert errors[0] is errors[1]
+
+
+def test_same_runtime_kernel_initialization_is_serialized(monkeypatch: pytest.MonkeyPatch) -> None:
+    runtime = importlib.import_module("poker_knight_ng._cuda_runtime")
+    adapter = runtime.CupyDeterministicRuntime(_cp=SimpleNamespace(__version__="14.1.1"))
+    entered_compile = threading.Event()
+    second_compile = threading.Event()
+    release_compile = threading.Event()
+    compiled: list[object] = []
+    probes: list[object] = []
+
+    class Module:
+        def get_function(self, name: str) -> str:
+            return name
+
+    def compile_once() -> Module:
+        compiled.append(object())
+        if len(compiled) == 1:
+            entered_compile.set()
+        else:
+            second_compile.set()
+        assert release_compile.wait(2)
+        return Module()
+
+    def probe_once() -> None:
+        probes.append(object())
+        adapter._abi_verified = True
+
+    monkeypatch.setattr(adapter, "_compile", compile_once)
+    monkeypatch.setattr(adapter, "_probe_abi", probe_once)
+    errors: list[BaseException] = []
+
+    def initialize_kernels() -> None:
+        try:
+            adapter._kernels()
+        except BaseException as exc:
+            errors.append(exc)
+
+    first = threading.Thread(target=initialize_kernels)
+    second = threading.Thread(target=initialize_kernels)
+    first.start()
+    assert entered_compile.wait(2)
+    second.start()
+    try:
+        assert not second_compile.wait(0.2)
+    finally:
+        release_compile.set()
+    first.join(2)
+    second.join(2)
+    assert not first.is_alive() and not second.is_alive()
+    assert errors == []
+    assert len(compiled) == 1
+    assert len(probes) == 1
 
 
 def test_batch_admission_has_a_hard_2gib_cap_and_never_allocates_zero_blocks() -> None:
