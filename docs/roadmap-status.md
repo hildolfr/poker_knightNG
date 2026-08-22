@@ -11,7 +11,7 @@ checkboxes, architecture, dependencies, and performance claims are not the
 current roadmap.
 
 **Status baseline:** promoted default-branch commit
-`15e49a5e8d88bcca6395ec07c02aacf388996ac4` on `main`.
+`3ef14f0cd3ad0023e00374b2912b0e70e540e58a` on `main`.
 
 ## Status meanings
 
@@ -99,12 +99,13 @@ silently approximated through a v1 interface.
 
 | Item | Status | Detail |
 |---|---|---|
-| Accepted default branch | **Complete** | `main` at `15e49a5e8d88bcca6395ec07c02aacf388996ac4` |
+| Accepted default branch | **Complete** | `main` at `3ef14f0cd3ad0023e00374b2912b0e70e540e58a` |
 | Full maintained test suite | **Complete** | 831 passed and 3 skipped at the promoted checkpoint |
 | CUDA qualification | **Complete** | Exact-wheel GPU and sanitizer evidence published |
 | Performance acceptance | **Complete** | 64.742% lower geometric-mean p50 with no p50 or p95 regressions |
 | Wheel and sdist verification | **Complete** | Fresh artifact installation and content checks passed |
-| Promotion to default `main` | **Complete** | Legacy `main` was fast-forwarded without squash, rebase, or merge commit to exact reviewed SHA `15e49a5e8d88bcca6395ec07c02aacf388996ac4`; [default-branch verification passed](https://github.com/hildolfr/poker_knightNG/actions/runs/31859196286) |
+| Promotion to default `main` | **Complete** | Legacy `main` was fast-forwarded today without squash, rebase, or merge commit to exact reviewed SHA `3ef14f0cd3ad0023e00374b2912b0e70e540e58a`; [default-branch verification passed](https://github.com/hildolfr/poker_knightNG/actions/runs/32064443362) |
+| Historical promotion (Aug 15) | **Complete** | Legacy `main` was previously fast-forwarded without squash, rebase, or merge commit to exact reviewed SHA `15e49a5e8d88bcca6395ec07c02aacf388996ac4`; [default-branch verification passed](https://github.com/hildolfr/poker_knightNG/actions/runs/31859196286) |
 | Main branch protection | **Active** | Strict required `verify` status, linear history, force-push/deletion denial, and disabled administrator enforcement are captured in the canonical [protection evidence](evidence/main-branch-protection.json) and SHA-256 manifest |
 | PyPI publication | **Untouched** | No package release has been published |
 | GitHub release | **Untouched** | No GitHub release exists |

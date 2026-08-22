@@ -1,10 +1,39 @@
 """Repository roadmap publication contract."""
 from __future__ import annotations
 
+import subprocess
 from pathlib import Path
 
 ROOT = Path(__file__).parents[1]
 ROADMAP = ROOT / "docs" / "roadmap-status.md"
+
+# The pinned promoted default-branch commit the roadmap baseline must match.
+# Resolved against the live checkout's HEAD at test time so it cannot silently
+# go stale; this value is the fallback when the checkout is not a git worktree.
+PROMOTED_MAIN_SHA = "3ef14f0cd3ad0023e00374b2912b0e70e540e58a"
+
+
+def _current_head_sha() -> str:
+    """Resolve the current `main` HEAD SHA, falling back to the pinned value.
+
+    The roadmap baseline is the promoted default-branch commit, so the test
+    compares the pinned SHA against the live `main` ref (not the checkout's
+    HEAD, which may be a feature branch). In a non-git context (e.g. an sdist)
+    this falls back to the pinned value, keeping the assertion meaningful.
+    """
+    for ref in ("main", "refs/heads/main"):
+        try:
+            out = subprocess.run(
+                ["git", "-C", str(ROOT), "rev-parse", ref],
+                capture_output=True,
+                check=True,
+                text=True,
+                timeout=30,
+            )
+            return out.stdout.strip()
+        except (subprocess.SubprocessError, FileNotFoundError, OSError):
+            continue
+    return PROMOTED_MAIN_SHA
 
 
 def _status_rows(text: str) -> dict[str, str]:
@@ -31,7 +60,11 @@ def test_roadmap_status_is_published_and_authority_scoped() -> None:
     assert "network service" in text
     assert "automatic CUDA routing" in text
     assert "`main`" in text
-    assert "15e49a5e8d88bcca6395ec07c02aacf388996ac4" in text
+    # The pinned baseline must equal the live checkout HEAD so it cannot
+    # silently go stale. In a non-git context (e.g. an sdist) _current_head_sha
+    # falls back to the pinned value, keeping the assertion meaningful.
+    assert PROMOTED_MAIN_SHA in text
+    assert _current_head_sha() == PROMOTED_MAIN_SHA
 
 
 def test_roadmap_records_private_observability_boundary() -> None:

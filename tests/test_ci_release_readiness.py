@@ -85,8 +85,8 @@ def test_roadmap_tracks_ci_and_promotion_as_distinct_states() -> None:
     rows = roadmap_rows()
     promotion_status, promotion_detail = rows["Promotion to default `main`"]
     assert promotion_status == "**Complete**"
-    assert "15e49a5e8d88bcca6395ec07c02aacf388996ac4" in promotion_detail
-    assert "actions/runs/31859196286" in promotion_detail
+    assert "3ef14f0cd3ad0023e00374b2912b0e70e540e58a" in promotion_detail
+    assert "actions/runs/32064443362" in promotion_detail
     protection_status, protection_detail = rows["Main branch protection"]
     assert protection_status == "**Active**"
     assert "evidence/main-branch-protection.json" in protection_detail
