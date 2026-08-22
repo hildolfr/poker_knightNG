@@ -1,0 +1,110 @@
+{
+  "checks": [
+    {
+      "detail": "HTTP 204 (empty)",
+      "duration_ms": 1.618396956473589,
+      "name": "healthz_204",
+      "passed": true
+    },
+    {
+      "detail": "HTTP 200 with valid v1 equity result",
+      "duration_ms": 1175.7014230825007,
+      "name": "valid_solve_round_trip",
+      "passed": true
+    },
+    {
+      "detail": "socket mode=0o660 uid=993 gid=981 (want 0o660 993/981); parent mode=0o750 uid=993 gid=981 (want 0o750 993/981)",
+      "duration_ms": 0.05176803097128868,
+      "name": "socket_file_mode_owner_after_bind",
+      "passed": true
+    },
+    {
+      "detail": "17th concurrent connection closed/rejected promptly",
+      "duration_ms": 1.4583580195903778,
+      "name": "seventeenth_connection_rejected",
+      "passed": true
+    },
+    {
+      "detail": "idle service closed and exited (code 1) in 0.064s (<= 5.0s grace)",
+      "duration_ms": 63.73709300532937,
+      "name": "stop_during_idle_closes_promptly",
+      "passed": true
+    },
+    {
+      "detail": "stale socket replaced and fresh service became healthy",
+      "duration_ms": 186.27302697859704,
+      "name": "stale_socket_recovery",
+      "passed": true
+    },
+    {
+      "detail": "admitted solve completed (HTTP 200) after stop request in 120.622s; drain waited past 5.0s grace for the admitted solve",
+      "duration_ms": 120622.1259359736,
+      "name": "stop_with_admitted_solve_waits_past_grace",
+      "passed": true
+    },
+    {
+      "detail": "new connection refused/closed during shutdown",
+      "duration_ms": 0.8046359289437532,
+      "name": "admission_stopped_during_shutdown",
+      "passed": true
+    }
+  ],
+  "commit": {
+    "branch": "main",
+    "rev_parse_head": "bebe7897c7a5f5aad61aa1838bd65bf9f05e2a08"
+  },
+  "format_version": "poker-knight-ng-deployment-conformance-v1",
+  "host": {
+    "effective_gid": 0,
+    "effective_uid": 0,
+    "kernel": "#1 SMP PREEMPT_DYNAMIC Debian 6.12.101-1 (2026-08-05)"
+  },
+  "preconditions": {
+    "checks": [
+      {
+        "detail": "running as root (euid=0); launching service via setuid/setgid",
+        "name": "privileged",
+        "passed": true
+      },
+      {
+        "detail": "user 'poker-knight-ng' exists with uid=993",
+        "name": "identity_user",
+        "passed": true
+      },
+      {
+        "detail": "group 'poker-knight-ng' exists with gid=981",
+        "name": "identity_group",
+        "passed": true
+      },
+      {
+        "detail": "'/run/poker-knight-ng' is a directory owned by uid=993 gid=981 with mode=0o750",
+        "name": "runtime_dir",
+        "passed": true
+      },
+      {
+        "detail": "no live listener currently bound to '/run/poker-knight-ng/service.sock'",
+        "name": "no_live_service",
+        "passed": true
+      },
+      {
+        "detail": "systemd scaffold remains inactive and unenableable (RefuseManualStart=yes, no [Install], no Sockets=)",
+        "name": "deployment_posture",
+        "passed": true
+      }
+    ],
+    "passed": true
+  },
+  "schema_url": "https://poker-knight-ng.invalid/validation/service/v1/deployment_conformance.schema.json",
+  "service": {
+    "gid": 981,
+    "name": "poker-knight-ng",
+    "uid": 993
+  },
+  "summary": {
+    "failed_count": 0,
+    "passed": true,
+    "passed_count": 8,
+    "total": 8
+  },
+  "timestamp_utc": "2026-08-22T17:19:29.287801Z"
+}
