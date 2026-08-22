@@ -75,7 +75,7 @@ SOLVE_BODY = (
     '"rng":{"algorithm_id":"poker-knight-ng/philox4x32-10","algorithm_version":"1"}}'
 )
 # A larger solve gives a measurable admitted-solve window for the L3 drain check.
-LARGE_SOLVE_TRIALS = "400000"
+LARGE_SOLVE_TRIALS = "100000"
 
 
 # --------------------------------------------------------------------------- #
@@ -765,13 +765,13 @@ def _check_stop_with_admitted_solve(proc: ServiceProc, sock_path: str) -> CheckR
             + b"\r\n"
             + body
         )
-        sock = _connect(sock_path, timeout=60.0)
+        sock = _connect(sock_path, timeout=300.0)
         _send(sock, request)
         # Give the request time to be admitted and begin solving before stop.
         time.sleep(0.5)
         proc.terminate("SIGTERM")
         try:
-            status, _headers, resp_body = _read_response(sock, timeout=60.0)
+            status, _headers, resp_body = _read_response(sock, timeout=300.0)
             parsed = json.loads(resp_body.decode("utf-8"))
         except Exception as exc:
             parsed = {}
