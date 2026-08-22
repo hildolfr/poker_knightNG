@@ -675,7 +675,7 @@ def test_same_session_has_exactly_one_concurrent_owner(monkeypatch) -> None:
 
     async def scenario() -> tuple[object, object]:
         first = asyncio.create_task(coordinator.handle_one_session(session))
-        await entered.wait()
+        await asyncio.wait_for(entered.wait(), _WORKER_WAIT_TIMEOUT)
         second = asyncio.create_task(coordinator.handle_one_session(session))
         # Deterministically wait for the second session to run its ownership
         # claim (and fail) before releasing the first session's finish gate,
@@ -683,7 +683,10 @@ def test_same_session_has_exactly_one_concurrent_owner(monkeypatch) -> None:
         with pytest.raises(RuntimeError, match="^session is already owned$"):
             await asyncio.wait_for(asyncio.shield(second), timeout=_WORKER_WAIT_TIMEOUT)
         finish.set()
-        return await asyncio.gather(first, second, return_exceptions=True)
+        first_result, second_result = await asyncio.wait_for(
+            asyncio.gather(first, second, return_exceptions=True), _WORKER_WAIT_TIMEOUT
+        )
+        return first_result, second_result
 
     results = asyncio.run(scenario())
 

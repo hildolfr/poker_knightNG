@@ -18,7 +18,7 @@ dependencies = [
 poker-knight-ng = { path = "..", editable = true }
 
 [dependency-groups]
-dev = ["pytest>=8.3"]
+dev = ["pytest>=8.3", "pytest-timeout>=2.3"]
 
 [tool.setuptools]
 package-dir = {"" = "src"}
@@ -28,6 +28,10 @@ where = ["src"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+# CI safety net: any test that hangs fails after 60s (with stack dump) instead
+# of stalling the job into the workflow-level 20-minute timeout.
+timeout = 60
+timeout_method = "thread"
 
 [project.scripts]
 poker-knight-ng-service = "poker_knight_ng_service.__main__:main"
