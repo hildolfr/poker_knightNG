@@ -61,6 +61,8 @@ exact configured path and no listener accepts a connection.
 
 ### 3. Routes and explicit backend selection
 
+> **Status note (2026-08-17):** The routing text below predates [ADR 0008](../../../docs/adr/0008-automatic-cuda-routing.md), which supersedes the §3 route table and the §7 `cuda`-on-`/v1/solve` problem-mapping bullet for the `/v1/solve` route. Under ADR 0008, `/v1/solve` binds by request `backend` (`cpu_reference` -> CPU, `cuda` -> CUDA). All other constraints in this ADR remain binding. This historical text is preserved as decided.
+
 Exactly three routes exist:
 
 | method | path | accepted backend | behavior |

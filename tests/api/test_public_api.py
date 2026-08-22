@@ -31,8 +31,10 @@ def test_authoritative_spec_records_phase5c_and_phase6_completion():
     status = (
         "**Status:** binding v1 contract/validation specification. The schema/semantic contract, exact oracle, "
         "deterministic CPU stream/engine, explicit CUDA engine, deterministic GPU qualification/publication "
-        "checkpoints, and explicit local Python API/CLI are complete. A network service and automatic CUDA "
-        "routing remain unimplemented."
+        "checkpoints, explicit local Python API/CLI, the private Unix-socket network service, and automatic "
+        "CUDA routing are complete. The network service is implemented under ADR 0005/0007 (private "
+        "Unix-socket HTTP boundary and bounded listener construction) and automatic CUDA routing under ADR "
+        "0008 (request-backend selection on `/v1/solve`)."
     )
     statistical_row = (
         "| Statistical characterization | predeclared interval checks against exact cases | deterministic "
@@ -48,7 +50,7 @@ def test_authoritative_spec_records_phase5c_and_phase6_completion():
         statistical_row,
         phase6,
         "- [x] Explicit user-facing local Python API and CLI routing are implemented with no fallback.",
-        "- [ ] A network service and automatic CUDA routing remain future work.",
+        "- [x] A network service and automatic CUDA routing are implemented in ADR 0008 with explicit CPU/CUDA selection.",
     }
     assert expected <= lines
     authority = next(line for line in lines if line.startswith("The normative authorities are "))

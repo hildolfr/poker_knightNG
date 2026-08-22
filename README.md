@@ -118,4 +118,4 @@ CUDA result provenance is restricted to `cuda-uuid:<UUID.hex()>` and `cuda-sourc
 
 ## Scope
 
-The binding v1 authorities are `docs/adr/`, `contracts/v1/`, and `validation/holdem/v1/SPEC.md`. The repository contains a deterministic CPU engine and an explicitly selected qualified CUDA engine. It does not yet provide a network service, automatic CUDA routing, adaptive sampling, multi-GPU execution, or silent backend fallback.
+The binding v1 authorities are `docs/adr/`, `contracts/v1/`, and `validation/holdem/v1/SPEC.md`. The repository contains a deterministic CPU engine, an explicitly selected qualified CUDA engine, a private Unix-socket network service (ADR 0005/0007), and automatic CUDA routing by request backend on `/v1/solve` (ADR 0008). It does not yet provide adaptive sampling, multi-GPU execution, or silent backend fallback.

@@ -23,6 +23,37 @@ all existing transport constraints.
 - keep `/v1/solve-cuda` explicit route for direct CUDA invocation
 - keep `/v1/solve` as automatic CPU vs CUDA by request backend
 
+## Amendment (supersession of ADR 0005 routing constraints)
+
+This ADR, as accepted and implemented, **supersedes** the following previously
+binding text in ADR 0005:
+
+- **ADR 0005 §3 ("Routes and explicit backend selection")** routing text, in
+  particular the frozen route table that bound `POST /v1/solve` to
+  `cpu_reference` only and declared "There is no backend-neutral route,
+  selection header, retry route, or automatic CUDA routing." Under this ADR,
+  `/v1/solve` is the automatic backend-selection route and binds by request
+  `backend` (`cpu_reference` -> CPU, `cuda` -> CUDA), with no fallback, no trial
+  reduction, and no cross-backend retry.
+- **ADR 0005 §7 ("Responses and correlation")** problem-mapping bullet
+  "`cuda` on the CPU route: `BACKEND_UNAVAILABLE` / 503" for the
+  cuda-on-`/v1/solve` case. Under this ADR, the `cuda` backend is a valid
+  selection on `/v1/solve`, so a `cuda` request routed to `/v1/solve` is not a
+  backend-mismatch failure; the retained mapping for that case is
+  solve-route-invalid-backend -> `UNSUPPORTED_REQUEST` / 400, per the frozen
+  profile. The `cpu_reference` on `/v1/solve-cuda` -> `UNSUPPORTED_REQUEST`
+  mapping remains unchanged.
+
+All other ADR 0005 constraints remain binding and are not modified by this
+amendment: the private AF_UNIX-only transport, authorization boundary, single
+request per connection, framing/header/body bounds, 16-connection admission
+with zero queued and one in-flight solve, no execution timeout, drain shutdown,
+correlation IDs, logging privacy, healthz semantics, and the 1,000,000 trial
+ceiling. ADR 0005 §9's Phase 7B implementation gate is satisfied by the
+listener work delivered under this phase and is superseded only as to its
+"no listener may be deployed" pre-gate language, which no longer applies once
+the bounded listener is implemented.
+
 ## Decision
 
 1. `/v1/solve` now binds by request `backend`:

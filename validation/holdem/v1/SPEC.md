@@ -1,6 +1,6 @@
 # Hold'em v1 validation and conformance specification
 
-**Status:** binding v1 contract/validation specification. The schema/semantic contract, exact oracle, deterministic CPU stream/engine, explicit CUDA engine, deterministic GPU qualification/publication checkpoints, and explicit local Python API/CLI are complete. A network service and automatic CUDA routing remain unimplemented.
+**Status:** binding v1 contract/validation specification. The schema/semantic contract, exact oracle, deterministic CPU stream/engine, explicit CUDA engine, deterministic GPU qualification/publication checkpoints, explicit local Python API/CLI, the private Unix-socket network service, and automatic CUDA routing are complete. The network service is implemented under ADR 0005/0007 (private Unix-socket HTTP boundary and bounded listener construction) and automatic CUDA routing under ADR 0008 (request-backend selection on `/v1/solve`).
 
 ## 1. Authority, scope, and future artifacts
 
@@ -39,7 +39,7 @@ The committed Phase 2 fixture materials are:
 - **Phase 5C-B — CUDA statistical execution and publication: COMPLETE.** Executed source `7fb617b900c06102caafe240ff95afe7fef2aa58` passed all four frozen geometries; the privacy-safe public record identity-binds the canonical private evidence digest and historical harness closure.
 - **Phase 6 — explicit public API and CLI: COMPLETE.** `solve()` remains CPU-only; `solve_cuda()` and `solve-cuda` are explicit CUDA routes with no fallback, bounded strict JSON input, canonical v1 output, and closed problem/exit behavior.
 - [x] Explicit user-facing local Python API and CLI routing are implemented with no fallback.
-- [ ] A network service and automatic CUDA routing remain future work.
+- [x] A network service and automatic CUDA routing are implemented in ADR 0008 with explicit CPU/CUDA selection.
 
 Structural schema validity is necessary but never proves semantic validity. Exact oracle comparison is not a substitute for deterministic replay, and statistical agreement never waives an exact invariant.
 
