@@ -87,3 +87,92 @@ def test_validator_rejects_reintroduced_socket_activation_unit(tmp_path: Path) -
     result = _validate(root)
     assert result.returncode != 0
     assert "socket activation units are forbidden" in result.stderr
+
+
+def test_validator_rejects_unit_with_restrict_address_families_missing(
+    tmp_path: Path,
+) -> None:
+    root, deployment = _copied_deployment(tmp_path)
+    unit = deployment / "systemd" / "poker-knight-ng.service"
+    unit.write_text(
+        unit.read_text("utf-8").replace("RestrictAddressFamilies=AF_UNIX\n", ""),
+        "utf-8",
+    )
+    result = _validate(root)
+    assert result.returncode != 0
+    assert "RestrictAddressFamilies must be AF_UNIX" in result.stderr
+
+
+@pytest.mark.parametrize("families", ["AF_UNIX AF_INET", "AF_UNIX AF_INET6", "AF_INET"])
+def test_validator_rejects_restrict_address_families_containing_tcp(
+    tmp_path: Path, families: str
+) -> None:
+    """Address families other than the exact AF_UNIX set are rejected."""
+    root, deployment = _copied_deployment(tmp_path)
+    unit = deployment / "systemd" / "poker-knight-ng.service"
+    unit.write_text(
+        unit.read_text("utf-8").replace(
+            "RestrictAddressFamilies=AF_UNIX", f"RestrictAddressFamilies={families}"
+        ),
+        "utf-8",
+    )
+    result = _validate(root)
+    assert result.returncode != 0
+    assert "RestrictAddressFamilies must be AF_UNIX" in result.stderr
+
+
+def test_validator_rejects_sockets_wiring_in_service_unit(tmp_path: Path) -> None:
+    """A Sockets= directive would hand a net-listening fd to the service; rejected."""
+    root, deployment = _copied_deployment(tmp_path)
+    unit = deployment / "systemd" / "poker-knight-ng.service"
+    unit.write_text(
+        unit.read_text("utf-8").replace(
+            "RestrictAddressFamilies=AF_UNIX",
+            "RestrictAddressFamilies=AF_UNIX\nSockets=attacker.socket",
+        ),
+        "utf-8",
+    )
+    result = _validate(root)
+    assert result.returncode != 0
+    assert "must not define Sockets" in result.stderr
+
+
+def test_shipped_unit_has_no_net_listening_directives() -> None:
+    """The shipped service unit must not declare any listening/proxy surface."""
+    parsed = _parse_unit(_deployment_unit("poker-knight-ng.service"))
+    service_keys = {key for key, _ in parsed["Service"]}
+    net_listening = {
+        "ListenStream",
+        "ListenDatagram",
+        "ListenNetlink",
+        "ListenSequentialPacket",
+        "Sockets",
+        "Bind",
+        "FileDescriptorName",
+    }
+    assert net_listening.isdisjoint(service_keys)
+
+
+def test_shipped_unit_lacks_install_and_network_related_sections() -> None:
+    parsed = _parse_unit(_deployment_unit("poker-knight-ng.service"))
+    forbidden_sections = {"Install", "Network", "Socket", "Path", "Timer", "Mount"}
+    assert forbidden_sections.isdisjoint(parsed)
+    assert "Unit" in parsed
+    assert "Service" in parsed
+
+
+def test_diagnostics_snapshot_exposes_no_peer_request_card_seed_or_path_fields() -> None:
+    """The operator diagnostics snapshot must stay a fixed, RAM-only aggregate."""
+    from poker_knight_ng_service.runtime import ServiceRuntime
+
+    snapshot = ServiceRuntime().diagnostics_snapshot()
+    forbidden_substrings = ("peer", "request", "card", "seed", "path")
+    for key in snapshot:
+        assert not any(token in key for token in forbidden_substrings)
+    assert set(snapshot) == {
+        "schema_version",
+        "readiness",
+        "active_sessions",
+        "max_sessions",
+        "rejected_sessions",
+    }
