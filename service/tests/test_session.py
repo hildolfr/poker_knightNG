@@ -5,8 +5,45 @@ import asyncio
 from collections import deque
 import json
 import re
+import threading
 
 import pytest
+
+# Bounded test-local handshake timeouts (seconds) mirroring the pattern used in
+# test_runtime.py post-fix: explicit awaited, bounded waits instead of
+# scheduler-dependent sleep(0)/raw wait() polling. Generous enough never to trip
+# spuriously on a loaded CI scheduler, yet hard-bounded so a genuinely stuck
+# worker fails loudly instead of hanging.
+_WORKER_WAIT_TIMEOUT = 30.0  # cross-thread worker handshake (finish/release)
+_START_HANDSHAKE_TIMEOUT = 5.0  # wait for a worker thread to signal it started
+_YIELD_TO_LOOP_TIMEOUT = 0.1  # bounded yield so a cancellation can be delivered
+
+
+async def _await_started(
+    started: threading.Event,
+    timeout: float = _START_HANDSHAKE_TIMEOUT,
+) -> None:
+    """Deterministically await a worker-thread start signal (bounded, no busy-wait)."""
+    await asyncio.wait_for(
+        asyncio.to_thread(started.wait, timeout),
+        timeout=timeout + 1.0,
+    )
+    assert started.is_set()
+
+
+async def _yield_until_still_running(
+    task: asyncio.Task[object],
+    timeout: float = _YIELD_TO_LOOP_TIMEOUT,
+) -> None:
+    """Yield to the loop for a bounded interval and require the task to survive.
+
+    Replaces ``await asyncio.sleep(0)`` used to let a cancellation be delivered
+    into an already-cancelled-but-draining task. The task is shielded so the
+    bounded ``wait_for`` timeout does not cancel it.
+    """
+    with pytest.raises(asyncio.TimeoutError):
+        await asyncio.wait_for(asyncio.shield(task), timeout=timeout)
+    assert not task.done()
 
 
 class MemorySession:
@@ -363,8 +400,6 @@ def test_peer_gone_at_send_discards_completed_response_and_closes() -> None:
 
 
 def test_parent_cancellation_drains_admitted_worker_before_close(monkeypatch) -> None:
-    import threading
-
     import poker_knight_ng_service.async_execution as async_execution
     from poker_knight_ng_service.admission import admit_solve
     from poker_knight_ng_service.session import handle_one_session
@@ -375,7 +410,7 @@ def test_parent_cancellation_drains_admitted_worker_before_close(monkeypatch) ->
     def execute(adapted, lease):
         lease._assert_active()
         started.set()
-        assert finish.wait(2)
+        assert finish.wait(_WORKER_WAIT_TIMEOUT)
         lease._assert_active()
         return {"discarded": True}
 
@@ -384,10 +419,9 @@ def test_parent_cancellation_drains_admitted_worker_before_close(monkeypatch) ->
 
     async def scenario() -> None:
         task = asyncio.create_task(handle_one_session(session))
-        while not started.is_set():
-            await asyncio.sleep(0)
+        await _await_started(started)
         task.cancel()
-        await asyncio.sleep(0)
+        await _yield_until_still_running(task)
         assert not task.done()
         assert session.close_count == 0
         held_busy = False
@@ -643,7 +677,11 @@ def test_same_session_has_exactly_one_concurrent_owner(monkeypatch) -> None:
         first = asyncio.create_task(coordinator.handle_one_session(session))
         await entered.wait()
         second = asyncio.create_task(coordinator.handle_one_session(session))
-        await asyncio.sleep(0)
+        # Deterministically wait for the second session to run its ownership
+        # claim (and fail) before releasing the first session's finish gate,
+        # instead of a scheduler-dependent await asyncio.sleep(0).
+        with pytest.raises(RuntimeError, match="^session is already owned$"):
+            await asyncio.wait_for(asyncio.shield(second), timeout=_WORKER_WAIT_TIMEOUT)
         finish.set()
         return await asyncio.gather(first, second, return_exceptions=True)
 

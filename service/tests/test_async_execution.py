@@ -2,8 +2,47 @@
 from __future__ import annotations
 
 import asyncio
+import threading
 
 import pytest
+
+# Bounded test-local handshake timeouts (seconds). These replace scheduler
+# dependent sleep(0)/raw wait() polling with explicit awaited, bounded waits
+# (the same pattern used in test_runtime.py post-fix). They are generous enough
+# that they never spuriously trip on a loaded CI scheduler, yet hard-bounded so
+# a genuinely stuck worker fails loudly instead of hanging.
+_WORKER_WAIT_TIMEOUT = 30.0  # cross-thread worker handshake (finish/release)
+_START_HANDSHAKE_TIMEOUT = 5.0  # wait for a worker thread to signal it started
+_YIELD_TO_LOOP_TIMEOUT = 0.1  # bounded yield so a cancellation can be delivered
+_IN_FLIGHT_HOLD = 0.2  # keep a fault-path worker alive briefly so the parent's
+# fault path reliably runs before the worker finishes (bounded event wait)
+
+
+async def _await_started(
+    started: threading.Event,
+    timeout: float = _START_HANDSHAKE_TIMEOUT,
+) -> None:
+    """Deterministically await a worker-thread start signal (bounded, no busy-wait)."""
+    await asyncio.wait_for(
+        asyncio.to_thread(started.wait, timeout),
+        timeout=timeout + 1.0,
+    )
+    assert started.is_set()
+
+
+async def _yield_until_still_running(
+    task: asyncio.Task[object],
+    timeout: float = _YIELD_TO_LOOP_TIMEOUT,
+) -> None:
+    """Yield to the loop for a bounded interval and require the task to survive.
+
+    Replaces ``await asyncio.sleep(0)`` used to let a cancellation be delivered
+    into an already-cancelled-but-draining task. The task is shielded so the
+    bounded ``wait_for`` timeout does not cancel it.
+    """
+    with pytest.raises(asyncio.TimeoutError):
+        await asyncio.wait_for(asyncio.shield(task), timeout=timeout)
+    assert not task.done()
 
 
 def _adapted():
@@ -71,8 +110,6 @@ def test_execution_runs_off_loop_with_active_lease(monkeypatch) -> None:
 
 
 def test_repeated_cancellation_drains_worker_before_release(monkeypatch) -> None:
-    import threading
-
     from poker_knight_ng.contract.errors import ContractProblem
     from poker_knight_ng_service import async_execution
     from poker_knight_ng_service.admission import admit_solve
@@ -83,7 +120,7 @@ def test_repeated_cancellation_drains_worker_before_release(monkeypatch) -> None
     def execute(adapted, lease):
         lease._assert_active()
         started.set()
-        assert finish.wait(2)
+        assert finish.wait(_WORKER_WAIT_TIMEOUT)
         lease._assert_active()
         return {"discarded": True}
 
@@ -91,13 +128,12 @@ def test_repeated_cancellation_drains_worker_before_release(monkeypatch) -> None
 
     async def scenario() -> None:
         task = asyncio.create_task(async_execution.execute_solve_async(_adapted()))
-        while not started.is_set():
-            await asyncio.sleep(0)
+        await _await_started(started)
 
         task.cancel()
-        await asyncio.sleep(0)
+        await _yield_until_still_running(task)
         task.cancel()
-        await asyncio.sleep(0)
+        await _yield_until_still_running(task)
         assert not task.done()
 
         with pytest.raises(ContractProblem) as busy:
@@ -114,8 +150,6 @@ def test_repeated_cancellation_drains_worker_before_release(monkeypatch) -> None
 
 
 def test_cancellation_wins_over_ordinary_worker_failure(monkeypatch) -> None:
-    import threading
-
     from poker_knight_ng.contract.errors import problem
     from poker_knight_ng_service import async_execution
 
@@ -124,15 +158,14 @@ def test_cancellation_wins_over_ordinary_worker_failure(monkeypatch) -> None:
 
     def execute(adapted, lease):
         started.set()
-        assert finish.wait(2)
+        assert finish.wait(_WORKER_WAIT_TIMEOUT)
         raise problem("INTERNAL_ERROR")
 
     monkeypatch.setattr(async_execution, "_execute_admitted", execute)
 
     async def scenario() -> None:
         task = asyncio.create_task(async_execution.execute_solve_async(_adapted()))
-        while not started.is_set():
-            await asyncio.sleep(0)
+        await _await_started(started)
         task.cancel()
         finish.set()
         with pytest.raises(asyncio.CancelledError):
@@ -188,19 +221,23 @@ def test_worker_base_exception_propagates_and_releases(monkeypatch) -> None:
 
 
 def test_wait_infrastructure_fault_joins_before_release(monkeypatch) -> None:
-    import threading
-    import time
-
     from poker_knight_ng.contract.errors import ContractProblem
     from poker_knight_ng_service import async_execution
     from poker_knight_ng_service.admission import admit_solve
 
+    entered = threading.Event()
+    in_flight = threading.Event()
     completed = threading.Event()
 
     def execute(adapted, lease):
-        time.sleep(0.05)
+        entered.set()
         lease._assert_active()
         completed.set()
+        # Hold the worker in-flight (not yet done) so the parent's fault path
+        # reliably runs before the worker finishes. Bounded and deterministic:
+        # the parent always drains (joins) this worker to completion, so
+        # completed is guaranteed regardless of the hold length.
+        in_flight.wait(_IN_FLIGHT_HOLD)
         return {"discarded": True}
 
     async def failed_sleep(delay):
@@ -212,6 +249,7 @@ def test_wait_infrastructure_fault_joins_before_release(monkeypatch) -> None:
     with pytest.raises(ContractProblem) as caught:
         asyncio.run(async_execution.execute_solve_async(_adapted()))
     assert caught.value.code == "INTERNAL_ERROR"
+    assert entered.is_set()
     assert completed.is_set()
 
     lease = admit_solve()
@@ -219,19 +257,19 @@ def test_wait_infrastructure_fault_joins_before_release(monkeypatch) -> None:
 
 
 def test_is_alive_fault_joins_before_release(monkeypatch) -> None:
-    import threading
-    import time
-
     from poker_knight_ng.contract.errors import ContractProblem
     from poker_knight_ng_service import async_execution
     from poker_knight_ng_service.admission import admit_solve
 
+    entered = threading.Event()
+    in_flight = threading.Event()
     completed = threading.Event()
 
     def execute(adapted, lease):
-        time.sleep(0.05)
+        entered.set()
         lease._assert_active()
         completed.set()
+        in_flight.wait(_IN_FLIGHT_HOLD)
         return {"discarded": True}
 
     class FailedAliveThread(threading.Thread):
@@ -244,6 +282,7 @@ def test_is_alive_fault_joins_before_release(monkeypatch) -> None:
     with pytest.raises(ContractProblem) as caught:
         asyncio.run(async_execution.execute_solve_async(_adapted()))
     assert caught.value.code == "INTERNAL_ERROR"
+    assert entered.is_set()
     assert completed.is_set()
 
     lease = admit_solve()
@@ -251,19 +290,19 @@ def test_is_alive_fault_joins_before_release(monkeypatch) -> None:
 
 
 def test_parent_join_and_liveness_faults_cannot_release_worker_lease(monkeypatch) -> None:
-    import threading
-    import time
-
     from poker_knight_ng.contract.errors import ContractProblem
     from poker_knight_ng_service import async_execution
     from poker_knight_ng_service.admission import admit_solve
 
+    entered = threading.Event()
+    in_flight = threading.Event()
     completed = threading.Event()
 
     def execute(adapted, lease):
-        time.sleep(0.05)
+        entered.set()
         lease._assert_active()
         completed.set()
+        in_flight.wait(_IN_FLIGHT_HOLD)
         return {"discarded": True}
 
     class FailedParentSyncThread(threading.Thread):
@@ -279,6 +318,7 @@ def test_parent_join_and_liveness_faults_cannot_release_worker_lease(monkeypatch
     with pytest.raises(ContractProblem) as caught:
         asyncio.run(async_execution.execute_solve_async(_adapted()))
     assert caught.value.code == "INTERNAL_ERROR"
+    assert entered.is_set()
     assert completed.is_set()
 
     lease = admit_solve()
@@ -286,21 +326,21 @@ def test_parent_join_and_liveness_faults_cannot_release_worker_lease(monkeypatch
 
 
 def test_wait_process_control_joins_before_propagation(monkeypatch) -> None:
-    import threading
-    import time
-
     from poker_knight_ng_service import async_execution
     from poker_knight_ng_service.admission import admit_solve
 
     class Stop(BaseException):
         pass
 
+    entered = threading.Event()
+    in_flight = threading.Event()
     completed = threading.Event()
 
     def execute(adapted, lease):
-        time.sleep(0.05)
+        entered.set()
         lease._assert_active()
         completed.set()
+        in_flight.wait(_IN_FLIGHT_HOLD)
         return {"discarded": True}
 
     async def interrupted_sleep(delay):
@@ -311,6 +351,7 @@ def test_wait_process_control_joins_before_propagation(monkeypatch) -> None:
 
     with pytest.raises(Stop):
         asyncio.run(async_execution.execute_solve_async(_adapted()))
+    assert entered.is_set()
     assert completed.is_set()
 
     lease = admit_solve()
@@ -318,19 +359,19 @@ def test_wait_process_control_joins_before_propagation(monkeypatch) -> None:
 
 
 def test_start_failure_after_dispatch_joins_before_release(monkeypatch) -> None:
-    import threading
-    import time
-
     from poker_knight_ng.contract.errors import ContractProblem
     from poker_knight_ng_service import async_execution
     from poker_knight_ng_service.admission import admit_solve
 
+    entered = threading.Event()
+    in_flight = threading.Event()
     completed = threading.Event()
 
     def execute(adapted, lease):
-        time.sleep(0.05)
+        entered.set()
         lease._assert_active()
         completed.set()
+        in_flight.wait(_IN_FLIGHT_HOLD)
         return {"discarded": True}
 
     class DispatchThenFailThread(threading.Thread):
@@ -344,6 +385,7 @@ def test_start_failure_after_dispatch_joins_before_release(monkeypatch) -> None:
     with pytest.raises(ContractProblem) as caught:
         asyncio.run(async_execution.execute_solve_async(_adapted()))
     assert caught.value.code == "INTERNAL_ERROR"
+    assert entered.is_set()
     assert completed.is_set()
 
     lease = admit_solve()
