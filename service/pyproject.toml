@@ -32,6 +32,9 @@ testpaths = ["tests"]
 # of stalling the job into the workflow-level 20-minute timeout.
 timeout = 60
 timeout_method = "thread"
+# Dump every thread's stack when a timeout fires so CI logs name the exact
+# hang location even though pytest stdout is block-buffered there.
+faulthandler_timeout = 65
 
 [project.scripts]
 poker-knight-ng-service = "poker_knight_ng_service.__main__:main"
