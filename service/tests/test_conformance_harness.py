@@ -48,7 +48,10 @@ class FakeSyscalls:
         self.group: tuple[str, int] | None = (c.SERVICE_NAME, 1001)
         self.runtime_stat: os.stat_result | None = _dir_stat(1001, 1001, 0o750)
         self.live = False
-        self.unit_text: str | None = None  # None => read the real scaffold unit
+        self.unit_text: str | None = (
+            "[Unit]\nDescription=x\nRefuseManualStart=yes\n"
+            "[Service]\nUser=poker-knight-ng\nGroup=poker-knight-ng\n"
+        )  # pre-activation scaffold; the real unit is activated post-WS-3
 
     def geteuid(self) -> int:
         return self.euid

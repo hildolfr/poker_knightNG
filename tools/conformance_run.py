@@ -260,10 +260,10 @@ def precondition_checks(syscalls: Syscalls) -> list[Precondition]:
             f"no live listener currently bound to '{SOCKET_PATH}'",
         ))
 
-    # Deployment posture must still be the inactive, unenableable scaffold.
-    # Refuse to run if removing RefuseManualStart / adding [Install] is implied:
-    # conformance is the PREREQUISITE for that change, so it must not run after
-    # the scaffold was already mutated toward activation.
+    # Deployment posture must still be the pre-activation scaffold for a fresh
+    # conformance run: the harness is the PREREQUISITE for activation, so it
+    # must not run against an already-activated unit (use git history or the
+    # recorded evidence instead of re-running conformance post-activation).
     unit_path = _repo_root() / DEPLOYMENT_UNIT_REL
     if not unit_path.exists():
         checks.append(Precondition(
@@ -279,12 +279,11 @@ def precondition_checks(syscalls: Syscalls) -> list[Precondition]:
         if refuse != ["yes"] or install or sockets:
             checks.append(Precondition(
                 "deployment_posture", False,
-                "deployment scaffold no longer declares the inactive posture "
+                "service unit no longer declares the pre-activation posture "
                 "(RefuseManualStart=yes, no [Install], no Sockets=). Refusing to "
                 "run: conformance is the PREREQUISITE for activation and must "
-                "not run against an already-activated unit. Remediation: restore "
-                "'RefuseManualStart=yes' and remove '[Install]'/'Sockets=' from "
-                "service/deployment/systemd/poker-knight-ng.service.",
+                "not re-run against an activated unit. For post-activation "
+                "verification use docs/evidence/ records and systemctl status.",
             ))
         else:
             checks.append(Precondition(

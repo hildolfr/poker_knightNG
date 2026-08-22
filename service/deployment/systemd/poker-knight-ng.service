@@ -1,8 +1,7 @@
 [Unit]
-Description=Poker Knight NG bounded local service (deployment scaffold; inactive pending conformance)
+Description=Poker Knight NG bounded local service
 After=network-online.target
 Wants=network-online.target
-RefuseManualStart=yes
 
 [Service]
 Type=simple
@@ -27,3 +26,6 @@ LockPersonality=yes
 RestrictRealtime=yes
 SystemCallArchitectures=native
 SystemCallFilter=@system-service
+
+[Install]
+WantedBy=multi-user.target

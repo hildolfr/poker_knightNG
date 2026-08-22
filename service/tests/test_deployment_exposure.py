@@ -49,11 +49,11 @@ def _validate(root: Path) -> subprocess.CompletedProcess[str]:
     )
 
 
-def test_deployment_scaffolding_cannot_be_enabled_or_started_manually() -> None:
-    """Prevent an unreviewed unit edit from publishing the local IPC endpoint."""
+def test_activated_unit_installs_and_carries_no_manual_start_guard() -> None:
+    """Post-activation: exact [Install] target, no RefuseManualStart anywhere."""
     parsed = _parse_unit(_deployment_unit("poker-knight-ng.service"))
-    assert [value for key, value in parsed["Unit"] if key == "RefuseManualStart"] == ["yes"]
-    assert "Install" not in parsed
+    assert [value for key, value in parsed["Install"] if key == "WantedBy"] == ["multi-user.target"]
+    assert [key for key, _ in parsed["Unit"] if key == "RefuseManualStart"] == []
 
 
 def test_staged_service_performs_its_own_bounded_local_bind() -> None:
@@ -66,13 +66,34 @@ def test_staged_service_performs_its_own_bounded_local_bind() -> None:
     assert not list((DEPLOYMENT / "systemd").glob("*.socket"))
 
 
-@pytest.mark.parametrize("forbidden_value", ["no", "yes\nRefuseManualStart=no"])
-def test_validator_rejects_non_exact_or_overridden_manual_start(
-    tmp_path: Path, forbidden_value: str
+@pytest.mark.parametrize("forbidden_install", ["", "WantedBy=default.target", "RequiredBy=multi-user.target\nWantedBy=multi-user.target"])
+def test_validator_rejects_missing_or_wrong_or_overridden_install_target(
+    tmp_path: Path, forbidden_install: str
 ) -> None:
     root, deployment = _copied_deployment(tmp_path)
     unit = deployment / "systemd" / "poker-knight-ng.service"
-    unit.write_text(unit.read_text("utf-8").replace("RefuseManualStart=yes", f"RefuseManualStart={forbidden_value}"), "utf-8")
+    text = unit.read_text("utf-8")
+    if forbidden_install:
+        text = text.replace(
+            "[Install]\nWantedBy=multi-user.target",
+            f"[Install]\n{forbidden_install}",
+        )
+    else:
+        text = text.replace("[Install]\nWantedBy=multi-user.target", "")
+    unit.write_text(text, "utf-8")
+    result = _validate(root)
+    assert result.returncode != 0
+    assert "WantedBy" in result.stderr or "RequiredBy" in result.stderr
+
+
+def test_validator_rejects_reintroduced_manual_start_guard(tmp_path: Path) -> None:
+    """A RefuseManualStart guard must never silently return post-activation."""
+    root, deployment = _copied_deployment(tmp_path)
+    unit = deployment / "systemd" / "poker-knight-ng.service"
+    unit.write_text(
+        unit.read_text("utf-8").replace("[Service]", "RefuseManualStart=yes\n[Service]"),
+        "utf-8",
+    )
     result = _validate(root)
     assert result.returncode != 0
     assert "RefuseManualStart" in result.stderr
@@ -153,9 +174,9 @@ def test_shipped_unit_has_no_net_listening_directives() -> None:
     assert net_listening.isdisjoint(service_keys)
 
 
-def test_shipped_unit_lacks_install_and_network_related_sections() -> None:
+def test_shipped_unit_lacks_socket_activation_and_aux_sections() -> None:
     parsed = _parse_unit(_deployment_unit("poker-knight-ng.service"))
-    forbidden_sections = {"Install", "Network", "Socket", "Path", "Timer", "Mount"}
+    forbidden_sections = {"Socket", "Network", "Path", "Timer", "Mount"}
     assert forbidden_sections.isdisjoint(parsed)
     assert "Unit" in parsed
     assert "Service" in parsed

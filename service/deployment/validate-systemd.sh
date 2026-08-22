@@ -45,10 +45,13 @@ def pick(values, key):
 
 
 service = parse_unit(sys.argv[1])
-if "Install" in service:
-    raise SystemExit("service unit must not define [Install]")
-if pick(service["Unit"], "RefuseManualStart") != ["yes"]:
-    raise SystemExit("service RefuseManualStart must be exactly yes")
+install = pick(service["Install"], "WantedBy") if "Install" in service else []
+if install != ["multi-user.target"]:
+    raise SystemExit("service [Install] WantedBy must be exactly multi-user.target")
+if pick(service["Install"], "RequiredBy"):
+    raise SystemExit("service [Install] must not define RequiredBy")
+if pick(service["Unit"], "RefuseManualStart"):
+    raise SystemExit("activated service must not define RefuseManualStart")
 if pick(service["Service"], "User") != ["poker-knight-ng"]:
     raise SystemExit("service User must be poker-knight-ng")
 if pick(service["Service"], "Group") != ["poker-knight-ng"]:
@@ -69,4 +72,4 @@ if command -v systemd-analyze >/dev/null 2>&1; then
     systemd-analyze verify "$service_unit"
 fi
 
-printf '%s\n' 'deployment validation passed: direct-bind scaffold remains inactive and unenableable'
+printf '%s\n' 'deployment validation passed: activated direct-bind service (hardening enforced, no socket activation)'
