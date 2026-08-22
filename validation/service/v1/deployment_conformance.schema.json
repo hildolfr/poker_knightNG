@@ -1,0 +1,111 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://poker-knight-ng.invalid/validation/service/v1/deployment_conformance.schema.json",
+  "title": "Poker Knight NG deployment-model conformance evidence",
+  "description": "Evidence produced by tools/conformance_run.py proving Phase 7F activation-gate items 1-4 under the deployment process model: dedicated poker-knight-ng identity, canonical /run/poker-knight-ng/service.sock bind, L2 16-admitted/17th-rejected, and L3 graceful-stop semantics. Repo-side schema; the generated deployment_conformance.json is a runtime artifact and must not be fabricated or committed.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "format_version",
+    "schema_url",
+    "timestamp_utc",
+    "host",
+    "service",
+    "commit",
+    "preconditions",
+    "checks",
+    "summary"
+  ],
+  "properties": {
+    "format_version": {
+      "const": "poker-knight-ng-deployment-conformance-v1"
+    },
+    "schema_url": {
+      "type": "string",
+      "pattern": "^https://poker-knight-ng\\.invalid/validation/service/v1/deployment_conformance\\.schema\\.json$"
+    },
+    "timestamp_utc": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]+)?Z$"
+    },
+    "host": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kernel", "effective_uid", "effective_gid"],
+      "properties": {
+        "kernel": { "type": "string", "minLength": 1 },
+        "effective_uid": { "type": "integer", "minimum": 0 },
+        "effective_gid": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "service": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "uid", "gid"],
+      "properties": {
+        "name": { "const": "poker-knight-ng" },
+        "uid": { "type": "integer", "minimum": 1 },
+        "gid": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "commit": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["rev_parse_head", "branch"],
+      "properties": {
+        "rev_parse_head": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+        "branch": { "type": "string", "minLength": 1 }
+      }
+    },
+    "preconditions": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["passed", "checks"],
+      "properties": {
+        "passed": { "type": "boolean" },
+        "checks": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/preconditionCheck" }
+        }
+      }
+    },
+    "checks": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/check" }
+    },
+    "summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["passed", "total", "passed_count", "failed_count"],
+      "properties": {
+        "passed": { "type": "boolean" },
+        "total": { "type": "integer", "minimum": 0 },
+        "passed_count": { "type": "integer", "minimum": 0 },
+        "failed_count": { "type": "integer", "minimum": 0 }
+      }
+    }
+  },
+  "$defs": {
+    "preconditionCheck": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "passed", "detail"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "passed": { "type": "boolean" },
+        "detail": { "type": "string", "minLength": 1 }
+      }
+    },
+    "check": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "passed", "duration_ms", "detail"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "passed": { "type": "boolean" },
+        "duration_ms": { "type": "number", "minimum": 0 },
+        "detail": { "type": "string", "minLength": 1 }
+      }
+    }
+  }
+}

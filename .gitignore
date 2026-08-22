@@ -49,3 +49,10 @@ tests/results/
 .claude/
 /CLAUDE.md
 /artifacts/
+
+# Deployment-model conformance runtime artifacts (repo-side prep; evidence is
+# generated on a live run and must never be committed as fabricated proof).
+validation/service/v1/deployment_conformance.json
+validation/service/v1/deployment_conformance.json.sha256
+validation/service/v1/conformance_run.log
+validation/service/v1/conformance_instance*.log
