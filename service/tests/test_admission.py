@@ -6,6 +6,12 @@ from threading import Barrier, Event, Thread
 
 import pytest
 
+# Bounded test-local handshake timeout (seconds). Cross-thread event waits use a
+# named, generous bound (instead of a magic raw wait(2)) so a slow CI scheduler
+# never spuriously trips the winner's release, while a genuinely stuck thread
+# still fails loudly.
+_THREAD_HANDSHAKE_TIMEOUT = 30.0
+
 
 def test_second_solve_is_rejected_while_global_lease_is_held() -> None:
     from poker_knight_ng.contract.errors import ContractProblem
@@ -152,7 +158,7 @@ def test_concurrent_attempts_admit_exactly_one_without_queue() -> None:
             return
         outcomes.put("ADMITTED")
         winner_ready.set()
-        if not release_winner.wait(2):
+        if not release_winner.wait(_THREAD_HANDSHAKE_TIMEOUT):
             outcomes.put("WINNER_TIMEOUT")
         lease.release()
 

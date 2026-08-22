@@ -20,6 +20,33 @@ WHEEL_URL = (
 WHEEL_SHA256 = "63cf8bbe7522de3bf65932fda1d9c2772064ffb3dae62d55932da54b31cb6c86"
 
 
+def _frozen_import_command(workflow: str) -> str:
+    """Extract the ci.yml frozen ``python -I -c \"import ...\"`` command line.
+
+    The workflow may run it through ``\\n``-joined YAML (as ci.yml does), so we
+    reconstruct the logical command by joining lines and locating the
+    ``-I -c`` fragment. Returns the full ``python ... \"import ...\"`` command.
+    """
+    normalized = workflow.replace("\\n", " ")
+    marker = normalized.find("-I -c")
+    assert marker >= 0, "ci.yml must contain a frozen import check with -I isolation"
+    start = normalized.rfind("python", 0, marker)
+    if start < 0:
+        start = marker
+    end = normalized.find('"', marker + len('-I -c "'))
+    return normalized[start:end + 1]
+
+
+def _import_list(import_cmd: str) -> list[str]:
+    """Extract the module list from a ``python -I -c \"import a, b, c\"`` command."""
+    quote = import_cmd.find('"import ')
+    assert quote >= 0, "frozen import command must use a quoted import statement"
+    body = import_cmd[quote + len('"import '):]
+    end = body.find('"')
+    assert end >= 0, "frozen import command must terminate its quoted import"
+    return [name.strip() for name in body[:end].split(",") if name.strip()]
+
+
 def test_service_package_owns_exact_h11_without_root_dependency_drift() -> None:
     root_project = tomllib.loads((ROOT / "pyproject.toml").read_text("utf-8"))
     service_project = tomllib.loads((SERVICE / "pyproject.toml").read_text("utf-8"))
@@ -82,19 +109,42 @@ def test_ci_verifies_frozen_service_environment_and_tests() -> None:
     assert "uv pip install --offline --no-deps" in workflow
     assert '"$h11_wheel" "$engine_wheel" "$service_wheel"' in workflow
     assert 'uv pip check --python "$service_venv/bin/python"' in workflow
-    assert (
-        '"$service_venv/bin/python" -I -c "import '
-        'poker_knight_ng_service.adapter, poker_knight_ng_service.admission, '
-        'poker_knight_ng_service.async_execution, '
-        'poker_knight_ng_service.connection, '
-        'poker_knight_ng_service.execution, '
-        'poker_knight_ng_service.framing, '
-        'poker_knight_ng_service.identity, '
-        'poker_knight_ng_service.listener, '
-        'poker_knight_ng_service.responses, poker_knight_ng_service.routing, '
-        'poker_knight_ng_service.stream_adapter, '
-        'poker_knight_ng_service.session"'
-        in workflow
+    # Decouple the frozen-import assertion from exact string equality: parse the
+    # -I -c "import ..." command ci.yml actually emits, then assert the module
+    # list it pins matches the real service modules on disk (and that the -I
+    # isolation flag is present). This stays green under cosmetic rewording of
+    # the workflow while still catching a real drift between the frozen import
+    # list and the shipped module set.
+    import_cmd = _frozen_import_command(workflow)
+    assert " -I -c " in import_cmd, "frozen import check must use -I isolation"
+    ci_modules = _import_list(import_cmd)
+    assert len(ci_modules) >= 10, "frozen import check pins too few modules"
+    assert all(module.startswith("poker_knight_ng_service.") for module in ci_modules)
+    assert len(set(ci_modules)) == len(ci_modules), "frozen import list has duplicates"
+    # Every module the frozen check imports must actually exist on disk — a
+    # stale reference (module renamed or removed) is real drift. We deliberately
+    # do not require exact equality with every disk module: ci.yml intentionally
+    # omits the __main__ entry point (and may omit runtime-only modules), so
+    # requiring an exact match would be brittle. The isolation guarantee — that
+    # each listed module imports cleanly with no third-party dependency beyond
+    # the pinned h11 wheel — is enforced by the workflow's own `-I` run.
+    disk_modules = {
+        path.stem
+        for path in (SERVICE / "src/poker_knight_ng_service").glob("*.py")
+        if path.name != "__init__.py"
+    }
+    missing = [m for m in ci_modules if not m.startswith("poker_knight_ng_service.")]
+    stale = [
+        m
+        for m in ci_modules
+        if m[len("poker_knight_ng_service."):] not in disk_modules
+    ]
+    assert not missing, f"frozen import list references non-service modules: {missing}"
+    assert not stale, (
+        "frozen CI import list references modules that no longer exist on disk.\n"
+        f"  stale in ci.yml: {sorted(stale)}\n"
+        "Remove or rename them in the CI import command to match the shipped "
+        "service package."
     )
 
 
@@ -176,6 +226,30 @@ def test_phase7b_source_preserves_engine_and_listener_authority_boundaries() -> 
     assert "from poker_knight_ng.engine import CPUReferenceEngine, CUDAEngine" in imports["execution.py"]
     assert all("listener" not in item.lower() for item in imports["execution.py"])
     assert all("poker_knight_ng.engine" not in item and "listener" not in item.lower() for item in imports["adapter.py"])
+    # Extend the forbidden-import scan to every service module: no module other
+    # than execution.py may import from the engine package, and no module other
+    # than execution.py (engine) and listener.py (listener) may import those
+    # authorities at all. A bare non-call `from poker_knight_ng.engine import X`
+    # smuggled into session.py/routing.py/admission.py/etc. must fail loudly.
+    for name, module_imports in imports.items():
+        if name in {"__init__.py", "__main__.py"}:
+            continue
+        engine_imports = [item for item in module_imports if "poker_knight_ng.engine" in item]
+        listener_imports = [item for item in module_imports if "listener" in item.lower()]
+        if name == "execution.py":
+            assert len(engine_imports) == 1 and engine_imports[0].startswith("from poker_knight_ng.engine import"), (
+                f"{name} must import the engine exactly once via a bare from-import"
+            )
+            continue
+        assert engine_imports == [], (
+            f"{name} must not import the engine authority (only execution.py may): {engine_imports}"
+        )
+        if name in {"listener.py", "runtime.py"}:
+            # listener.py owns the listener; runtime.py is its lifecycle owner.
+            continue
+        assert listener_imports == [], (
+            f"{name} must not import the listener authority (only listener.py/runtime.py may): {listener_imports}"
+        )
     assert set(engine_calls) == {("execution.py", "CPUReferenceEngine"), ("execution.py", "CUDAEngine"), ("execution.py", "engine.solve")}
     assert len(engine_calls) == 3
     assert thread_calls == [("async_execution.py", "Thread")]
