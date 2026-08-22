@@ -60,11 +60,19 @@ def test_roadmap_status_is_published_and_authority_scoped() -> None:
     assert "network service" in text
     assert "automatic CUDA routing" in text
     assert "`main`" in text
-    # The pinned baseline must equal the live checkout HEAD so it cannot
-    # silently go stale. In a non-git context (e.g. an sdist) _current_head_sha
-    # falls back to the pinned value, keeping the assertion meaningful.
+    # The pinned baseline must be an ancestor (or the tip) of live `main` so it
+    # cannot silently go stale, while still passing after later promotions move
+    # main forward — a strict-equality check here would fail on every future
+    # promotion of exactly the commits this roadmap describes. In a non-git
+    # context (e.g. an sdist) _current_head_sha falls back to the pinned value.
     assert PROMOTED_MAIN_SHA in text
-    assert _current_head_sha() == PROMOTED_MAIN_SHA
+    current = _current_head_sha()
+    if current != PROMOTED_MAIN_SHA:
+        assert subprocess.run(
+            ["git", "-C", str(ROOT), "merge-base", "--is-ancestor",
+             PROMOTED_MAIN_SHA, current],
+            check=True,
+        ).returncode == 0
 
 
 def test_roadmap_records_private_observability_boundary() -> None:
